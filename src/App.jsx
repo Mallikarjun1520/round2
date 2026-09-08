@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import RopeVisualizer from './components/RopeVisualizer';
 import Scoreboard from './components/Scoreboard';
 import QuestionCard from './components/QuestionCard';
@@ -6,6 +6,7 @@ import TieBreaker from './components/TieBreaker';
 import JsonManagerModal from './components/JsonManagerModal';
 import MatchHistoryModal from './components/MatchHistoryModal';
 import { sounds } from './utils/soundEffects';
+import { saveGame, loadGame, clearGame } from './utils/gamePersistence';
 import confetti from 'canvas-confetti';
 import { Trophy, Zap, Play, RotateCcw, Settings, Award, History, Timer, Swords, Bomb } from 'lucide-react';
 
@@ -47,7 +48,7 @@ export default function App() {
   const [matchHistory, setMatchHistory] = useState([]);
   const [winnerInfo, setWinnerInfo] = useState(null);
   const [tieBreakerPrepSeconds, setTieBreakerPrepSeconds] = useState(15);
-  const [noEscapeRevealSeconds, setNoEscapeRevealSeconds] = useState(15);
+  const [noEscapeRevealSeconds, setNoEscapeRevealSeconds] = useState(10);
 
   // Original question state (preserved across powerup activations)
   const [originalQuestionDifficulty, setOriginalQuestionDifficulty] = useState(null);
@@ -72,31 +73,91 @@ export default function App() {
   const [timerState, setTimerState] = useState('IDLE'); // 'IDLE' | 'RUNNING' | 'PAUSED' | 'STOPPED'
   const [timeBombDecrease, setTimeBombDecrease] = useState(0); // seconds removed from the remaining time
 
+  // Absolute wall-clock timestamps used so a reload resumes timers exactly.
+  // questionStartMs = when the current question was revealed,
+  // questionDeadlineMs = when it expires (effective time applied at reveal).
+  const [questionStartMs, setQuestionStartMs] = useState(null);
+  const [questionDeadlineMs, setQuestionDeadlineMs] = useState(null);
+  // Absolute deadline for the 10s No Escape transfer window.
+  const [noEscapeRevealDeadlineMs, setNoEscapeRevealDeadlineMs] = useState(null);
+  // Absolute deadline for the 15s lead-in prep before the tie breaker question.
+  const [tieBreakerPrepDeadlineMs, setTieBreakerPrepDeadlineMs] = useState(null);
+  // Live child-component state mirrors (auto-saved / restored on reload).
+  const [questionUIState, setQuestionUIState] = useState(null); // { selectedIndex, isSubmitted, answerResult }
+  const [tieBreakerState, setTieBreakerState] = useState(null);
+
+  // Persistence plumbing
+  const restorePerformedRef = useRef(false);
+  const freshGameStartedRef = useRef(false);
+  const saveTimerRef = useRef(null);
+  const buildSnapshotRef = useRef(null);
+
+  // Absolute-deadline lead-in prep before the tie breaker (15s), so a reload
+  // resumes the exact countdown. When it expires, move to the tie breaker.
   useEffect(() => {
-    if (gameMode !== 'TIE_BREAKER_PREP') return;
-    if (tieBreakerPrepSeconds <= 0) {
-      setGameMode('TIE_BREAKER');
+    if (gameMode !== 'TIE_BREAKER_PREP') {
+      setTieBreakerPrepDeadlineMs(null);
       return;
     }
-    const id = setTimeout(() => setTieBreakerPrepSeconds((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [gameMode, tieBreakerPrepSeconds]);
+    if (restorePerformedRef.current && tieBreakerPrepDeadlineMs == null) {
+      // A restored prep screen arrived without a deadline — re-anchor it.
+      setTieBreakerPrepDeadlineMs(Date.now() + tieBreakerPrepSeconds * 1000);
+      return;
+    }
+    const deadline = tieBreakerPrepDeadlineMs;
+    const update = () => {
+      const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setTieBreakerPrepSeconds(secondsLeft);
+      if (Date.now() >= deadline) {
+        setGameMode('TIE_BREAKER');
+      }
+    };
+    update();
+    const id = setInterval(update, 250);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameMode, tieBreakerPrepDeadlineMs]);
 
-  // No Escape 15-second window before the question opens to the other team
+  // No Escape 10-second window before the question opens to the other team —
+  // anchored to an absolute deadline so a reload resumes the exact transition.
   useEffect(() => {
-    if (gameMode !== 'NO_ESCAPE_QUESTION') return;
-    if (noEscapeRevealSeconds <= 0) return;
-    const id = setTimeout(() => setNoEscapeRevealSeconds((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [gameMode, noEscapeRevealSeconds]);
+    if (gameMode !== 'NO_ESCAPE_QUESTION') {
+      setNoEscapeRevealDeadlineMs(null);
+      return;
+    }
+    if (restorePerformedRef.current && noEscapeRevealDeadlineMs == null) {
+      setNoEscapeRevealDeadlineMs(Date.now() + noEscapeRevealSeconds * 1000);
+      return;
+    }
+    const deadline = noEscapeRevealDeadlineMs;
+    const update = () => {
+      const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setNoEscapeRevealSeconds(secondsLeft);
+      if (Date.now() >= deadline) {
+        setNoEscapeRevealSeconds(0);
+      }
+    };
+    update();
+    const id = setInterval(update, 250);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameMode, noEscapeRevealDeadlineMs]);
 
-  // When the No Escape 15s transition completes, the receiving team's question
+  // When the No Escape 10s transition completes, the receiving team's question
   // timer starts (the separate transition countdown is NOT the receiver's time).
   useEffect(() => {
     if (gameMode !== 'NO_ESCAPE_QUESTION') return;
     if (noEscapeRevealSeconds > 0) return;
     setActivePowerup('NO_ESCAPE_RECEIVER_TURN');
     setTimerState('RUNNING');
+    if (questionDeadlineMs == null && noEscapeData) {
+      const now = Date.now();
+      const points = noEscapeData.points;
+      const seconds =
+        points === 1 ? 45 : points === 2 ? 60 : points === 3 ? 90 : 90;
+      setQuestionStartMs(now);
+      setQuestionDeadlineMs(now + seconds * 1000);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameMode, noEscapeRevealSeconds]);
 
@@ -108,7 +169,120 @@ export default function App() {
       .catch((err) => console.error('Error loading default questions.json:', err));
   }, []);
 
+  // === PERSISTENCE (IndexedDB snapshot / restore) ===
+  // Snapshot builder always reflects the latest render, so any effect can call
+  // buildSnapshotRef.current() without stale-closure issues.
+  buildSnapshotRef.current = () => ({
+    gameMode,
+    teamA,
+    teamB,
+    ropePosition,
+    lastDelta,
+    activeTeam,
+    currentTurnIndex,
+    activePowerUp,
+    challengeQuestion,
+    noEscapeData,
+    winnerInfo,
+    matchHistory,
+    noEscapeRevealSeconds,
+    noEscapeRevealDeadlineMs,
+    originalQuestionDifficulty,
+    originalQuestionPoints,
+    originalQuestionTimeLimit,
+    currentQuestionDifficulty,
+    timeBombActive,
+    activePowerup,
+    challengeActivatedBy,
+    timeBombActivatedBy,
+    noEscapeActivatedBy,
+    noEscapeReceivingTeam,
+    originalQuestionTimer,
+    currentQuestionDeadline,
+    timerState,
+    timeBombDecrease,
+    questionStartMs,
+    questionDeadlineMs,
+    tieBreakerPrepSeconds,
+    tieBreakerPrepDeadlineMs,
+    questionUIState,
+    tieBreakerState
+  });
+
+  const applySnapshot = (snap) => {
+    if (!snap || typeof snap !== 'object') return;
+    setGameMode(snap.gameMode ?? 'SETUP');
+    setTeamA(snap.teamA ?? teamA);
+    setTeamB(snap.teamB ?? teamB);
+    setRopePosition(snap.ropePosition ?? 0);
+    setLastDelta(snap.lastDelta ?? 0);
+    setActiveTeam(snap.activeTeam ?? 'A');
+    setCurrentTurnIndex(snap.currentTurnIndex ?? 0);
+    setActivePowerUp(snap.activePowerUp ?? null);
+    setChallengeQuestion(snap.challengeQuestion ?? null);
+    setNoEscapeData(snap.noEscapeData ?? null);
+    setWinnerInfo(snap.winnerInfo ?? null);
+    setMatchHistory(snap.matchHistory ?? []);
+    setNoEscapeRevealSeconds(snap.noEscapeRevealSeconds ?? 0);
+    setNoEscapeRevealDeadlineMs(snap.noEscapeRevealDeadlineMs ?? null);
+    setOriginalQuestionDifficulty(snap.originalQuestionDifficulty ?? null);
+    setOriginalQuestionPoints(snap.originalQuestionPoints ?? null);
+    setOriginalQuestionTimeLimit(snap.originalQuestionTimeLimit ?? null);
+    setCurrentQuestionDifficulty(snap.currentQuestionDifficulty ?? null);
+    setTimeBombActive(snap.timeBombActive ?? false);
+    setActivePowerup(snap.activePowerup ?? 'NORMAL_TURN');
+    setChallengeActivatedBy(snap.challengeActivatedBy ?? null);
+    setTimeBombActivatedBy(snap.timeBombActivatedBy ?? null);
+    setNoEscapeActivatedBy(snap.noEscapeActivatedBy ?? null);
+    setNoEscapeReceivingTeam(snap.noEscapeReceivingTeam ?? null);
+    setOriginalQuestionTimer(snap.originalQuestionTimer ?? null);
+    setCurrentQuestionDeadline(snap.currentQuestionDeadline ?? null);
+    setTimerState(snap.timerState ?? 'IDLE');
+    setTimeBombDecrease(snap.timeBombDecrease ?? 0);
+    setQuestionStartMs(snap.questionStartMs ?? null);
+    setQuestionDeadlineMs(snap.questionDeadlineMs ?? null);
+    setTieBreakerPrepSeconds(snap.tieBreakerPrepSeconds ?? 0);
+    setTieBreakerPrepDeadlineMs(snap.tieBreakerPrepDeadlineMs ?? null);
+    setQuestionUIState(snap.questionUIState ?? null);
+    setTieBreakerState(snap.tieBreakerState ?? null);
+  };
+
+  // Boot restore: resume the exact prior match (once per component mount).
+  useEffect(() => {
+    if (restorePerformedRef.current) return;
+    restorePerformedRef.current = true;
+    loadGame().then((snap) => {
+      if (snap && !freshGameStartedRef.current) applySnapshot(snap);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced auto-save. Uses buildSnapshotRef so it always writes the latest
+  // state after every render without a sprawling dependency array.
+  useEffect(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      if (gameMode !== 'SETUP') {
+        saveGame(buildSnapshotRef.current());
+      }
+    }, 250);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  });
+
+  // Flush any pending save immediately when the tab is hidden/closing.
+  useEffect(() => {
+    const flush = () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveGame(buildSnapshotRef.current());
+    };
+    window.addEventListener('pagehide', flush);
+    return () => window.removeEventListener('pagehide', flush);
+  }, []);
+
   const handleStartGame = () => {
+    freshGameStartedRef.current = true;
     setTeamA((prev) => ({
       ...prev,
       score: 0,
@@ -128,7 +302,7 @@ export default function App() {
     setNoEscapeData(null);
     setWinnerInfo(null);
     setMatchHistory([]);
-    setNoEscapeRevealSeconds(15);
+    setNoEscapeRevealSeconds(10);
     setOriginalQuestionDifficulty(null);
     setOriginalQuestionPoints(null);
     setOriginalQuestionTimeLimit(null);
@@ -143,8 +317,15 @@ export default function App() {
     setCurrentQuestionDeadline(null);
     setTimerState('IDLE');
     setTimeBombDecrease(0);
+    setQuestionStartMs(null);
+    setQuestionDeadlineMs(null);
+    setNoEscapeRevealDeadlineMs(null);
+    setTieBreakerPrepDeadlineMs(null);
+    setQuestionUIState(null);
+    setTieBreakerState(null);
     setGameMode('BOARD');
     sounds.init();
+    clearGame();
   };
 
   // === MATCH HISTORY LOGGING ===
@@ -293,10 +474,14 @@ export default function App() {
       activatingTeam: currentAnsweringTeam
     });
 
-    setNoEscapeRevealSeconds(15);
+    setNoEscapeRevealSeconds(10);
+    setNoEscapeRevealDeadlineMs(Date.now() + 10000);
+    setQuestionStartMs(null);
+    setQuestionDeadlineMs(null);
+    setQuestionUIState(null);
     setGameMode('NO_ESCAPE_QUESTION');
     // Explicit powerup / timer state. Receiving team = the opposite team; its
-    // question clock is PAUSED until the blank 15s transition completes.
+    // question clock is PAUSED until the blank 10s transition completes.
     setActivePowerup('NO_ESCAPE_TRANSFER');
     setNoEscapeActivatedBy(currentAnsweringTeam);
     setNoEscapeReceivingTeam(currentAnsweringTeam === 'A' ? 'B' : 'A');
@@ -448,6 +633,7 @@ export default function App() {
         triggerGameOver(teamB.name, 'ROPE POSITION');
       } else {
         setTieBreakerPrepSeconds(15);
+        setTieBreakerPrepDeadlineMs(Date.now() + 15000);
         setGameMode('TIE_BREAKER_PREP');
       }
       return;
@@ -470,6 +656,9 @@ export default function App() {
     setCurrentQuestionDeadline(null);
     setTimeBombDecrease(0);
     setTimerState('IDLE');
+    setQuestionStartMs(null);
+    setQuestionDeadlineMs(null);
+    setQuestionUIState(null);
     setGameMode('BOARD');
   };
 
@@ -502,6 +691,20 @@ export default function App() {
     );
   }
 
+  // First-round (opening 18 questions per team) stats: correct-answer count and
+  // total selection time for CORRECT answers only. Used only when the Tie
+  // Breaker ends in a deadlock where BOTH teams got every tie-breaker question
+  // wrong. Tie-breaker rounds are excluded from this tally.
+  const firstRoundStats = { A: { correct: 0, totalMs: 0 }, B: { correct: 0, totalMs: 0 } };
+  matchHistory.forEach((entry) => {
+    if (entry.eventType === 'TIEBREAKER') return;
+    const teamKey = entry.answeringTeamKey;
+    if (teamKey !== 'A' && teamKey !== 'B') return;
+    if (!entry.isCorrect) return;
+    firstRoundStats[teamKey].correct += 1;
+    firstRoundStats[teamKey].totalMs += (Number(entry.timeTaken) || 0) * 1000;
+  });
+
   const currentQ = activePowerUp?.type === 'challenge' && challengeQuestion
     ? challengeQuestion
     : getCurrentQuestion();
@@ -533,9 +736,20 @@ export default function App() {
   if (activePowerUp?.type === 'challenge') {
     const escalatedTimeLimits = { easy: 45, medium: 60, hard: 90, very_hard: 120 };
     effectiveTimeLimit = escalatedTimeLimits[effectiveCurrentDifficulty] || 90;
+  } else if (activePowerUp?.type === 'timeBomb') {
+    effectiveTimeLimit = Math.max(0, stageRules.timeLimit - getTimeBombReduction(stageRules.difficulty));
   }
 
   const displayDifficulty = effectiveCurrentDifficulty;
+
+  // Launch question with an authoritative deadline so the clock survives refreshes.
+  const launchQuestion = () => {
+    const now = Date.now();
+    setQuestionStartMs(now);
+    setQuestionDeadlineMs(now + effectiveTimeLimit * 1000);
+    setQuestionUIState(null);
+    setGameMode('QUESTION');
+  };
 
   return (
     <div className="app-container">
@@ -548,7 +762,10 @@ export default function App() {
         soundEnabled={soundEnabled}
         onToggleSound={toggleSound}
         onOpenMatchHistory={() => setIsHistoryModalOpen(true)}
-        onResetGame={() => setGameMode('SETUP')}
+        onResetGame={() => {
+          clearGame();
+          setGameMode('SETUP');
+        }}
       />
 
       {/* Main Game Screen */}
@@ -610,7 +827,7 @@ export default function App() {
                 )}
               </div>
 
-              <button className="btn-launch-question" onClick={() => setGameMode('QUESTION')}>
+              <button className="btn-launch-question" onClick={launchQuestion}>
                 <Play size={20} /> REVEAL QUESTION
               </button>
             </div>
@@ -667,12 +884,8 @@ export default function App() {
               isChallenged={isChallengedNow}
               challengerTeamName={challengeActivatedBy ? (challengeActivatedBy === 'A' ? teamA.name : teamB.name) : ''}
               isTimeBombed={activePowerUp?.type === 'timeBomb'}
-              timeBombApply={timeBombActive}
-              timeBombReduction={activePowerUp?.type === 'timeBomb' ? getTimeBombReduction(stageRules.difficulty) : 0}
+              timeBombOriginalTime={activePowerUp?.type === 'timeBomb' ? stageRules.timeLimit : 0}
               timeBombActivatorName={timeBombActivatedBy === 'A' ? teamA.name : timeBombActivatedBy === 'B' ? teamB.name : ''}
-              onTimeBombApplied={(remaining) => {
-                setCurrentQuestionDeadline(remaining);
-              }}
               activeTeamName={answeringTeamObj.name}
               opposingTeamName={actualOpposingTeamObj.name}
 
@@ -690,6 +903,12 @@ export default function App() {
               noEscapeAvailable={canUseNoEscape}
               onNoEscape={handleNoEscape}
               onSubmitAnswer={handleSubmitAnswer}
+
+              deadline={questionDeadlineMs}
+              startMs={questionStartMs}
+              restoreState={questionUIState}
+              onQuestionUIChange={setQuestionUIState}
+              onTimerStart={(deadline) => setQuestionDeadlineMs(deadline)}
             />
           </div>
         </div>
@@ -709,8 +928,6 @@ export default function App() {
               originalTimeLimit={noEscapeData.points === 1 ? 45 : noEscapeData.points === 2 ? 60 : 90}
               isChallenged={false}
               isTimeBombed={false}
-              timeBombApply={false}
-              timeBombReduction={0}
               activeTeamName={(noEscapeReceivingTeam ?? (noEscapeData.activatingTeam === 'A' ? 'B' : 'A')) === 'A' ? teamA.name : teamB.name}
               opposingTeamName={(noEscapeReceivingTeam ?? (noEscapeData.activatingTeam === 'A' ? 'B' : 'A')) === 'A' ? teamB.name : teamA.name}
               noEscapeAvailable={false}
@@ -723,6 +940,11 @@ export default function App() {
               revealLocked={noEscapeRevealSeconds > 0}
               revealSecondsLeft={noEscapeRevealSeconds}
               onSubmitAnswer={handleNoEscapeResult}
+              deadline={questionDeadlineMs}
+              startMs={questionStartMs}
+              restoreState={questionUIState}
+              onQuestionUIChange={setQuestionUIState}
+              onTimerStart={(deadline) => setQuestionDeadlineMs(deadline)}
             />
           </div>
         </div>
@@ -743,7 +965,7 @@ export default function App() {
               <li><strong>Hard Phase (Q25-36):</strong> 90s timer | 3 Points</li>
               <li><strong>⚔️ Challenge:</strong> OPPONENT can escalate the live question (Easy→Medium→Hard→Very Hard) — timer updates, but <strong>points stay the same.</strong> Wrong answer = <strong>2× original points!</strong></li>
               <li><strong>💣 TimeBomb (Med/Hard Only):</strong> OPPONENT cuts the answering team's remaining time (-25s Medium / -30s Hard). Rope is unaffected.</li>
-              <li><strong>🚫 No Escape:</strong> Answering team passes the live question to the opponent. 15s transfer, then the receiving team answers without bonus time.</li>
+              <li><strong>🚫 No Escape:</strong> Answering team passes the live question to the opponent. 10s transfer, then the receiving team answers without bonus time.</li>
               <li><strong>Knockout Win:</strong> Pull the pointer past 26 points!</li>
             </ul>
           </div>
@@ -794,6 +1016,9 @@ export default function App() {
           teamA={teamA}
           teamB={teamB}
           onFinishTieBreaker={handleFinishTieBreaker}
+          restoredState={tieBreakerState}
+          onTieBreakerStateChange={setTieBreakerState}
+          firstRoundStats={firstRoundStats}
           onLogRound={(round) => logMatchEvent({
             turnLabel: `SD${round.round}`,
             eventType: 'TIEBREAKER',

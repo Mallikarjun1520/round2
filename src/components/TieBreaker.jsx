@@ -12,31 +12,57 @@ export default function TieBreaker({
   teamA,
   teamB,
   onFinishTieBreaker,
-  onLogRound
+  onLogRound,
+  restoredState,
+  onTieBreakerStateChange,
+  firstRoundStats = { A: { correct: 0, totalMs: 0 }, B: { correct: 0, totalMs: 0 } }
 }) {
-  const [activeTeam, setActiveTeam] = useState('A');
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [history, setHistory] = useState([]);
-  const [winnerTeam, setWinnerTeam] = useState(null);
-  const [winReason, setWinReason] = useState(null);
+  const [activeTeam, setActiveTeam] = useState(() => restoredState?.activeTeam ?? 'A');
+  const [questionIndex, setQuestionIndex] = useState(() => restoredState?.questionIndex ?? 0);
+  const [history, setHistory] = useState(() => restoredState?.history ?? []);
+  const [winnerTeam, setWinnerTeam] = useState(() => restoredState?.winnerTeam ?? null);
+  const [winReason, setWinReason] = useState(() => restoredState?.winReason ?? null);
 
   const [elapsedMs, setElapsedMs] = useState(0);
-  const [selectedOption, setSelectedOption] = useState(null);
-  const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
-  const [lastCorrect, setLastCorrect] = useState(null);
-  const [lastTimeMs, setLastTimeMs] = useState(0);
+  const [selectedOption, setSelectedOption] = useState(() => restoredState?.selectedOption ?? null);
+  const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(() => restoredState?.isAnswerSubmitted ?? false);
+  const [lastCorrect, setLastCorrect] = useState(() => restoredState?.lastCorrect ?? null);
+  const [lastTimeMs, setLastTimeMs] = useState(() => restoredState?.lastTimeMs ?? 0);
 
-  const [isPrepping, setIsPrepping] = useState(true);
+  const [isPrepping, setIsPrepping] = useState(() => restoredState?.isPrepping ?? true);
   const [prepSecondsLeft, setPrepSecondsLeft] = useState(BETWEEN_QUESTIONS_PREP_SECONDS);
-  const pendingAdvanceRef = useRef(null);
+  // Absolute deadline for the 5s between-question prep, so a reload resumes it.
+  const [prepDeadlineMs, setPrepDeadlineMs] = useState(() => {
+    if (restoredState?.isPrepping) {
+      return restoredState.prepDeadlineMs ?? Date.now() +
+        (restoredState.prepSecondsLeft ?? BETWEEN_QUESTIONS_PREP_SECONDS) * 1000;
+    }
+    return Date.now() + BETWEEN_QUESTIONS_PREP_SECONDS * 1000;
+  });
+  // Absolute wall-clock start of the current tie-breaker question, so the 30s
+  // clock survives a reload. Null until the live question actually begins.
+  const [qStartMs, setQStartMs] = useState(() => {
+    if (restoredState && !restoredState.isPrepping && !restoredState.isAnswerSubmitted && restoredState.qStartMs) {
+      return restoredState.qStartMs;
+    }
+    return null;
+  });
+  const pendingAdvanceRef = useRef(restoredState?.pendingAdvance ?? null);
+  // Skips the per-question reset on the first mount when a live (unsubmitted)
+  // question was restored, keeping the restored selection/time base intact.
+  const startedKeyRef = useRef(
+    restoredState && !restoredState.isPrepping && !restoredState.isAnswerSubmitted
+      ? `${restoredState.activeTeam}-${restoredState.questionIndex}`
+      : null
+  );
 
   const timerIntervalRef = useRef(null);
   const selectedOptionRef = useRef(selectedOption);
-  const qStartRef = useRef(Date.now());
   // Single-resolution guard: after the question is resolved (manual submit or
   // timeout) no further submission is ever allowed, even if a stale timer tick
   // fires. Timeout with no selection resolves as a wrong answer.
   const isAnswerSubmittedRef = useRef(false);
+  isAnswerSubmittedRef.current = isAnswerSubmitted;
   selectedOptionRef.current = selectedOption;
 
   const teamAQuestions = tiebreakerQuestions?.teamA || [];
@@ -65,34 +91,74 @@ export default function TieBreaker({
 
   useEffect(() => {
     if (!isPrepping) return;
-    if (prepSecondsLeft <= 0) {
+
+    const completePrep = () => {
       const pending = pendingAdvanceRef.current;
       pendingAdvanceRef.current = null;
       setIsPrepping(false);
       if (pending) {
         setActiveTeam(pending.activeTeam);
         setQuestionIndex(pending.questionIndex);
+        // The prep always transitions to a NEW question. Clearing the previous
+        // team's submitted/selection state here lets the question-start effect
+        // below treat it as a fresh start — otherwise the new question would
+        // render as an already-answered result and its answer timer would
+        // never begin.
+        setIsAnswerSubmitted(false);
+        isAnswerSubmittedRef.current = false;
+        setLastCorrect(null);
+        setSelectedOption(null);
+        selectedOptionRef.current = null;
+        // Drop the old question's clock base so the answer-timer effect cannot
+        // pick up a stale start and instantly auto-submit the new question.
+        setQStartMs(null);
+        setElapsedMs(0);
       }
-      return;
-    }
-    const id = setTimeout(() => setPrepSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [isPrepping, prepSecondsLeft]);
+    };
+
+    const update = () => {
+      // Single authoritative transition timer: this interval advances the UI
+      // AND completes the transition the moment the deadline is reached. It is
+      // also what re-anchors/resumes a restored prep countdown — no refresh or
+      // second timer is needed.
+      if (prepDeadlineMs - Date.now() <= 0) {
+        setPrepSecondsLeft(0);
+        completePrep();
+        return;
+      }
+      setPrepSecondsLeft(Math.max(0, Math.ceil((prepDeadlineMs - Date.now()) / 1000)));
+    };
+    update();
+    const id = setInterval(update, 250);
+    return () => clearInterval(id);
+  }, [isPrepping, prepDeadlineMs]);
 
   useEffect(() => {
-    if (winnerTeam || !currentQ || isPrepping) return;
+    if (winnerTeam || !currentQ || isPrepping || isAnswerSubmitted) return;
 
-    const startTime = Date.now();
-    qStartRef.current = startTime;
-    setElapsedMs(0);
-    setSelectedOption(null);
-    selectedOptionRef.current = null;
-    setIsAnswerSubmitted(false);
-    isAnswerSubmittedRef.current = false;
-    setLastCorrect(null);
+    // Only reset per-question UI when this is truly a new question (navigated
+    // into), not on the initial mount when a live question was restored.
+    const key = `${activeTeam}-${questionIndex}`;
+    const isFreshStart = startedKeyRef.current !== key;
+    startedKeyRef.current = key;
+
+    if (isFreshStart) {
+      setQStartMs(Date.now());
+      setElapsedMs(0);
+      setSelectedOption(null);
+      selectedOptionRef.current = null;
+      setIsAnswerSubmitted(false);
+      isAnswerSubmittedRef.current = false;
+      setLastCorrect(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionIndex, activeTeam, winnerTeam, isPrepping, isAnswerSubmitted, currentQ]);
+
+  useEffect(() => {
+    if (winnerTeam || !currentQ || isPrepping || isAnswerSubmitted || qStartMs == null) return;
 
     timerIntervalRef.current = setInterval(() => {
-      const diff = Date.now() - qStartRef.current;
+      const diff = Date.now() - qStartMs;
       setElapsedMs(diff);
 
       if (diff >= SUDDEN_DEATH_TIME_LIMIT * 1000) {
@@ -107,15 +173,15 @@ export default function TieBreaker({
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [questionIndex, activeTeam, winnerTeam, isPrepping]);
+  }, [qStartMs, questionIndex, activeTeam, winnerTeam, isPrepping, isAnswerSubmitted]);
 
   const submitAnswer = (optionIdx) => {
     if (isAnswerSubmittedRef.current || winnerTeam) return;
     isAnswerSubmittedRef.current = true;
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
 
-    const rawElapsed = Date.now() - qStartRef.current;
-    const takenMs = Math.min(rawElapsed, SUDDEN_DEATH_TIME_LIMIT * 1000);
+    const rawElapsed = Date.now() - (qStartMs || Date.now());
+    const takenMs = Math.min(Math.max(0, rawElapsed), SUDDEN_DEATH_TIME_LIMIT * 1000);
 
     setIsAnswerSubmitted(true);
     setSelectedOption(optionIdx);
@@ -164,8 +230,32 @@ export default function TieBreaker({
       questionIndex: nextQuestionIndex
     };
     setPrepSecondsLeft(BETWEEN_QUESTIONS_PREP_SECONDS);
+    setPrepDeadlineMs(Date.now() + BETWEEN_QUESTIONS_PREP_SECONDS * 1000);
     setIsPrepping(true);
   };
+
+  // Report persistent state to the parent so a reload resumes the exact tie
+  // breaker. Absolute deadlines (prepDeadlineMs, qStartMs) travel with it;
+  // per-tick values (prepSecondsLeft, elapsedMs) are deliberately excluded.
+  useEffect(() => {
+    if (!onTieBreakerStateChange) return;
+    onTieBreakerStateChange({
+      activeTeam,
+      questionIndex,
+      history,
+      winnerTeam,
+      winReason,
+      isPrepping,
+      prepDeadlineMs,
+      isAnswerSubmitted,
+      selectedOption,
+      lastCorrect,
+      lastTimeMs,
+      qStartMs,
+      pendingAdvance: pendingAdvanceRef.current
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTeam, questionIndex, history, winnerTeam, winReason, isPrepping, prepDeadlineMs, isAnswerSubmitted, selectedOption, lastCorrect, lastTimeMs, qStartMs]);
 
   const decideWinner = (updatedHistory) => {
     const teamACorrect = updatedHistory.filter(h => h.team === 'A' && h.isCorrect).length;
@@ -180,8 +270,32 @@ export default function TieBreaker({
       setWinnerTeam('B');
       setWinReason('MORE_CORRECT');
     } else if (teamACorrect === 0 && teamBCorrect === 0) {
-      setWinnerTeam('TIE');
-      setWinReason('DEAD_TIE');
+      // Special case: BOTH teams got ALL their tie-breaker questions wrong, so
+      // fall back to the original 18 main-game questions — correct-answer
+      // count first, then total correct-answer selection time (lower wins).
+      const firstACorrect = firstRoundStats?.A?.correct ?? 0;
+      const firstBCorrect = firstRoundStats?.B?.correct ?? 0;
+      const firstATime = firstRoundStats?.A?.totalMs ?? 0;
+      const firstBTime = firstRoundStats?.B?.totalMs ?? 0;
+
+      if (firstACorrect > firstBCorrect) {
+        setWinnerTeam('A');
+        setWinReason('FIRST_ROUND_MORE_CORRECT');
+      } else if (firstBCorrect > firstACorrect) {
+        setWinnerTeam('B');
+        setWinReason('FIRST_ROUND_MORE_CORRECT');
+      } else if (firstATime < firstBTime) {
+        setWinnerTeam('A');
+        setWinReason('FIRST_ROUND_FASTER_TIME');
+      } else if (firstBTime < firstATime) {
+        setWinnerTeam('B');
+        setWinReason('FIRST_ROUND_FASTER_TIME');
+      } else {
+        // Both teams also have zero/first-round equal stats — keep the
+        // original final-tie behavior.
+        setWinnerTeam('TIE');
+        setWinReason('DEAD_TIE');
+      }
     } else if (aTime < bTime) {
       setWinnerTeam('A');
       setWinReason('FASTER_TIME');
@@ -238,6 +352,11 @@ export default function TieBreaker({
     }
 
     const winnerObj = winnerTeam === 'A' ? teamA : teamB;
+    // When the winner was decided by the FIRST-18-question fallback (both teams
+    // got every tie-breaker question wrong), the tie-breaker stats (0/5, 0.00s)
+    // are meaningless — hide the comparison cards entirely in that case.
+    const isFirst18Decision =
+      winReason === 'FIRST_ROUND_MORE_CORRECT' || winReason === 'FIRST_ROUND_FASTER_TIME';
 
     return (
       <div className="tiebreaker-results-card">
@@ -247,33 +366,39 @@ export default function TieBreaker({
         <p className="tb-elimination-summary">
           {winReason === 'MORE_CORRECT'
             ? `${winnerObj.name} answered more questions correctly!`
+            : winReason === 'FIRST_ROUND_MORE_CORRECT'
+            ? `Both teams missed every tie-breaker question — ${winnerObj.name} had more correct answers in the opening 18 questions!`
+            : winReason === 'FIRST_ROUND_FASTER_TIME'
+            ? `Both teams missed every tie-breaker question — ${winnerObj.name} had the faster total time on correct answers in the opening 18 questions!`
             : `Both teams matched — ${winnerObj.name} wins with the faster total time!`}
         </p>
 
-        <div className="tiebreaker-comparison-grid">
-          <div className={`team-res-card ${winnerTeam === 'A' ? 'winner-card' : ''}`}>
-            <h3>{teamA.name}</h3>
-            <div className="res-stat">
-              <span>Correct Answers:</span>
-              <strong>{getTeamCorrectCount('A')} / {QUESTIONS_PER_TEAM}</strong>
+        {!isFirst18Decision && (
+          <div className="tiebreaker-comparison-grid">
+            <div className={`team-res-card ${winnerTeam === 'A' ? 'winner-card' : ''}`}>
+              <h3>{teamA.name}</h3>
+              <div className="res-stat">
+                <span>Correct Answers:</span>
+                <strong>{getTeamCorrectCount('A')} / {QUESTIONS_PER_TEAM}</strong>
+              </div>
+              <div className="res-stat">
+                <span>Total Time (correct only):</span>
+                <strong>{formatMs(getTeamTotalTime('A'))}</strong>
+              </div>
             </div>
-            <div className="res-stat">
-              <span>Total Time (correct only):</span>
-              <strong>{formatMs(getTeamTotalTime('A'))}</strong>
+            <div className={`team-res-card ${winnerTeam === 'B' ? 'winner-card' : ''}`}>
+              <h3>{teamB.name}</h3>
+              <div className="res-stat">
+                <span>Correct Answers:</span>
+                <strong>{getTeamCorrectCount('B')} / {QUESTIONS_PER_TEAM}</strong>
+              </div>
+              <div className="res-stat">
+                <span>Total Time (correct only):</span>
+                <strong>{formatMs(getTeamTotalTime('B'))}</strong>
+              </div>
             </div>
           </div>
-          <div className={`team-res-card ${winnerTeam === 'B' ? 'winner-card' : ''}`}>
-            <h3>{teamB.name}</h3>
-            <div className="res-stat">
-              <span>Correct Answers:</span>
-              <strong>{getTeamCorrectCount('B')} / {QUESTIONS_PER_TEAM}</strong>
-            </div>
-            <div className="res-stat">
-              <span>Total Time (correct only):</span>
-              <strong>{formatMs(getTeamTotalTime('B'))}</strong>
-            </div>
-          </div>
-        </div>
+        )}
 
         <button className="btn-finish-all" onClick={() => onFinishTieBreaker(winnerObj.name)}>
           COMPLETE ROUND 2 <ArrowRight size={20} />

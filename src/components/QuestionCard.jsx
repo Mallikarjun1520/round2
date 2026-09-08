@@ -5,15 +5,14 @@ import { sounds } from '../utils/soundEffects';
 export default function QuestionCard({
   question,
   difficulty, // 'easy' | 'medium' | 'hard' | 'very_hard' (current display difficulty)
-  timeLimit, // effective full time for this question state
+  timeLimit, // effective full time for this question state (already reduced by Time Bomb)
   points = 1, // ORIGINAL point value (never changes after a Challenge)
   originalPoints = points,
   isChallenged = false,
   challengerTeamName = '',
   isTimeBombed = false,
-  timeBombApply = false,
-  timeBombReduction = 0,
   timeBombActivatorName = '',
+  timeBombOriginalTime = 0, // original (pre-reduction) seconds for the banner
   activeTeamName,
   opposingTeamName,
   noEscapeAvailable = false,
@@ -28,33 +27,39 @@ export default function QuestionCard({
   canActivateTimeBomb = false,
   onActivateChallenge,
   onActivateTimeBomb,
-  onTimeBombApplied,
   onSubmitAnswer,
   revealLocked = false,
-  revealSecondsLeft = 0
+  revealSecondsLeft = 0,
+  // Absolute wall-clock values that let a refreshed page resume the exact
+  // question: deadlineMs is when the question expires; startMs is when it was
+  // revealed (used for an exact "time taken" figure).
+  deadline = null,
+  startMs = null,
+  // Restore hook: App feeds back the saved {selectedIndex,isSubmitted,answerResult}
+  // so a mid-question refresh keeps the same visible state.
+  restoreState = null,
+  onQuestionUIChange = null,
+  onTimerStart = null
 }) {
-  const [timeLeft, setTimeLeft] = useState(timeLimit);
-  const [selectedIndex, setSelectedIndex] = useState(null);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [answerResult, setAnswerResult] = useState(null);
-  // Actual remaining time right after a Time Bomb reduction is applied, used so
-  // the banner shows the real shortened deadline (not full time minus reduction).
-  const [appliedBombRemaining, setAppliedBombRemaining] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(() => {
+    if (deadline) return Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    return timeLimit;
+  });
+  const [selectedIndex, setSelectedIndex] = useState(restoreState?.selectedIndex ?? null);
+  const [isSubmitted, setIsSubmitted] = useState(restoreState?.isSubmitted ?? false);
+  const [answerResult, setAnswerResult] = useState(restoreState?.answerResult ?? null);
 
   const timerRef = useRef(null);
+  const timerKeyRef = useRef(null);
   const selectedIndexRef = useRef(selectedIndex);
   selectedIndexRef.current = selectedIndex;
   const isSubmittedRef = useRef(isSubmitted);
   isSubmittedRef.current = isSubmitted;
-  const timeLeftRef = useRef(timeLimit);
+  const timeLeftRef = useRef(timeLeft);
   timeLeftRef.current = timeLeft;
-  // Guarantees the Time Bomb reduction is applied to the CURRENT remaining
-  // time exactly once per question. Without this guard React.StrictMode's dev
-  // double-effect would subtract the reduction twice (60 -> 35 -> 10).
-  const bombAppliedRef = useRef(false);
   // Wall-clock start time for this question, used to compute an exact
   // "time taken" figure for the match history log — independent of the
-  // 1-second tick granularity of the visible countdown.
+  // tick granularity of the visible countdown.
   const questionStartRef = useRef(Date.now());
 
   // Guard against a missing/not-yet-loaded question so a bad state never
@@ -135,53 +140,58 @@ export default function QuestionCard({
     }
   }, [timeLeft, isSubmitted]);
 
-  // Main countdown timer — resets on new question / difficulty change /
+  // Main countdown timer — anchored to an absolute deadline so the remaining
+  // time survives a refresh. Resets on new question / difficulty change /
   // when the No Escape reveal lock lifts (receiving team's clock starts then).
+  // On mount with a past deadline the question auto-resolves (timeout) once.
   useEffect(() => {
-    setTimeLeft(timeLimit);
-    setSelectedIndex(null);
-    setIsSubmitted(false);
-    setAnswerResult(null);
-    setAppliedBombRemaining(null);
-    bombAppliedRef.current = false;
-    questionStartRef.current = Date.now();
+    const key = `${question.question}|${timeLimit}|${revealLocked ? 'L' : 'O'}`;
+    if (timerKeyRef.current !== null && timerKeyRef.current !== key) {
+      setSelectedIndex(null);
+      setIsSubmitted(false);
+      setAnswerResult(null);
+      selectedIndexRef.current = null;
+      isSubmittedRef.current = false;
+    }
+    timerKeyRef.current = key;
+
+    questionStartRef.current = startMs || Date.now();
     if (revealLocked) return;
 
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          handleAutoSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const deadlineMs = deadline || Date.now() + timeLimit * 1000;
+    if (onTimerStart) onTimerStart(deadlineMs);
+
+    const tick = () => {
+      // Guard against double-resolution: once submitted (or restored as
+      // submitted) never auto-resolve again, even from a stale tick.
+      if (isSubmittedRef.current) {
+        clearInterval(timerRef.current);
+        return;
+      }
+      const remaining = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (Date.now() >= deadlineMs) {
+        clearInterval(timerRef.current);
+        handleAutoSubmit();
+      }
+    };
+
+    tick();
+    timerRef.current = setInterval(tick, 250);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [question, timeLimit, revealLocked]);
+  }, [question, timeLimit, deadline, revealLocked]);
 
-  // Time Bomb: reduce the CURRENT remaining time exactly once, immediately,
-  // without pausing or resetting the countdown. If remaining time is <= the
-  // reduction the question expires right away (treated as one timeout).
+  // Report UI state upstream so App can auto-save / restore it.
   useEffect(() => {
-    if (!timeBombApply || timeBombReduction <= 0) return;
-    if (bombAppliedRef.current) return;
-    bombAppliedRef.current = true;
-    const current = timeLeftRef.current;
-    const reduced = Math.max(0, current - timeBombReduction);
-    timeLeftRef.current = reduced;
-    setTimeLeft(reduced);
-    setAppliedBombRemaining(reduced);
-    if (onTimeBombApplied) onTimeBombApplied(reduced);
-    if (reduced <= 0) {
-      handleAutoSubmit();
+    if (onQuestionUIChange) {
+      onQuestionUIChange({ selectedIndex, isSubmitted, answerResult });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeBombApply]);
+  }, [selectedIndex, isSubmitted, answerResult]);
 
   // Keyboard shortcut listener (1-4 keys)
   useEffect(() => {
@@ -216,9 +226,11 @@ export default function QuestionCard({
     return `diff-${diff}`;
   };
 
+  const timeBombReduction = isTimeBombed ? Math.max(0, timeBombOriginalTime - timeLimit) : 0;
+
   // === NO ESCAPE TRANSITION SCREEN ===
   // After No Escape activation the question, options and timer stay hidden for
-  // 15 seconds. The receiving team cannot answer and the clock does not tick.
+  // 10 seconds. The receiving team cannot answer and the clock does not tick.
   if (revealLocked) {
     return (
       <div className={`question-card-container no-escape-transition ${getDiffClass(difficulty)}`}>
@@ -266,7 +278,9 @@ export default function QuestionCard({
         </div>
       )}
 
-      {/* TimeBomb Banner if active */}
+      {/* TimeBomb Banner if active — shows the ORIGINAL full time plus the
+          reduction and the effective (reduced) deadline. The timer already runs
+          at the effective time, so the reduction is baked in from reveal. */}
       {isTimeBombed && (
         <div className="timebomb-active-banner">
           <div className="timebomb-banner-top">
@@ -278,10 +292,10 @@ export default function QuestionCard({
               <strong>{timeBombActivatorName.toUpperCase()}</strong> shortened {activeTeamName.toUpperCase()}'s timer!
             </span>
             <span className="cb-detail-line">
-              Original time: <strong>{timeLimit}s</strong> • Time reduction: <strong>-{timeBombReduction}s</strong> • New deadline: <strong>{appliedBombRemaining != null ? appliedBombRemaining : Math.max(0, timeLeft - timeBombReduction)}s</strong>
+              Original time: <strong>{timeBombOriginalTime}s</strong> • Time reduction: <strong>-{timeBombReduction}s</strong> • New deadline: <strong>{timeLimit}s</strong>
             </span>
             <span className="cb-detail-line">
-              The countdown continues normally — answer before the deadline or forfeit the question.
+              The reduction is included in the countdown — answer before the deadline or forfeit the question.
             </span>
           </div>
         </div>
@@ -367,7 +381,7 @@ export default function QuestionCard({
           <button
             className="btn-no-escape-prominent"
             onClick={onNoEscape}
-            title="Pass the current question to the opposing team. 15 seconds, then they must answer it."
+            title="Pass the current question to the opposing team. 10 seconds, then they must answer it."
           >
             🚫 NO ESCAPE — Pass to {opposingTeamName}
           </button>
