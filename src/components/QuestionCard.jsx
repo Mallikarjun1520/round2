@@ -8,8 +8,6 @@ export default function QuestionCard({
   timeLimit, // effective full time for this question state
   points = 1, // ORIGINAL point value (never changes after a Challenge)
   originalPoints = points,
-  originalDifficulty = difficulty,
-  originalTimeLimit = timeLimit,
   isChallenged = false,
   challengerTeamName = '',
   isTimeBombed = false,
@@ -24,11 +22,13 @@ export default function QuestionCard({
   onNoEscape,
   opponentHasChallenge = false,
   opponentHasTimeBomb = false,
+  opponentActionsVisible = false,
   opponentKey = 'B',
   canActivateChallenge = false,
   canActivateTimeBomb = false,
   onActivateChallenge,
   onActivateTimeBomb,
+  onTimeBombApplied,
   onSubmitAnswer,
   revealLocked = false,
   revealSecondsLeft = 0
@@ -37,6 +37,9 @@ export default function QuestionCard({
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [answerResult, setAnswerResult] = useState(null);
+  // Actual remaining time right after a Time Bomb reduction is applied, used so
+  // the banner shows the real shortened deadline (not full time minus reduction).
+  const [appliedBombRemaining, setAppliedBombRemaining] = useState(null);
 
   const timerRef = useRef(null);
   const selectedIndexRef = useRef(selectedIndex);
@@ -45,6 +48,10 @@ export default function QuestionCard({
   isSubmittedRef.current = isSubmitted;
   const timeLeftRef = useRef(timeLimit);
   timeLeftRef.current = timeLeft;
+  // Guarantees the Time Bomb reduction is applied to the CURRENT remaining
+  // time exactly once per question. Without this guard React.StrictMode's dev
+  // double-effect would subtract the reduction twice (60 -> 35 -> 10).
+  const bombAppliedRef = useRef(false);
   // Wall-clock start time for this question, used to compute an exact
   // "time taken" figure for the match history log — independent of the
   // 1-second tick granularity of the visible countdown.
@@ -135,6 +142,8 @@ export default function QuestionCard({
     setSelectedIndex(null);
     setIsSubmitted(false);
     setAnswerResult(null);
+    setAppliedBombRemaining(null);
+    bombAppliedRef.current = false;
     questionStartRef.current = Date.now();
     if (revealLocked) return;
 
@@ -156,14 +165,18 @@ export default function QuestionCard({
   }, [question, timeLimit, revealLocked]);
 
   // Time Bomb: reduce the CURRENT remaining time exactly once, immediately,
-  // without pausing or resetting the countdown. If remaining < reduction the
-  // question expires right away (treated as wrong/timeout by the engine).
+  // without pausing or resetting the countdown. If remaining time is <= the
+  // reduction the question expires right away (treated as one timeout).
   useEffect(() => {
     if (!timeBombApply || timeBombReduction <= 0) return;
+    if (bombAppliedRef.current) return;
+    bombAppliedRef.current = true;
     const current = timeLeftRef.current;
     const reduced = Math.max(0, current - timeBombReduction);
     timeLeftRef.current = reduced;
     setTimeLeft(reduced);
+    setAppliedBombRemaining(reduced);
+    if (onTimeBombApplied) onTimeBombApplied(reduced);
     if (reduced <= 0) {
       handleAutoSubmit();
     }
@@ -237,8 +250,8 @@ export default function QuestionCard({
         </div>
       )}
 
-      {/* Challenge Banner if active — shows who challenged, who still answers,
-          the difficulty escalation, the ORIGINAL points and the new timer. */}
+      {/* Challenge Banner if active — brief: who challenged, who still answers.
+          (Difficulty/points/timer details are managed by the game logic.) */}
       {isChallenged && (
         <div className="challenged-active-banner">
           <div className="challenge-banner-top">
@@ -247,19 +260,7 @@ export default function QuestionCard({
           </div>
           <div className="challenge-banner-details">
             <span className="cb-detail-line">
-              <strong>{challengerTeamName.toUpperCase()}</strong> challenged this question!
-            </span>
-            <span className="cb-detail-line">
-              <strong>{activeTeamName.toUpperCase()}</strong> is still answering.
-            </span>
-            <span className="cb-detail-line">
-              Difficulty: <strong>{getDiffLabel(originalDifficulty)} → {getDiffLabel(difficulty)}</strong>
-            </span>
-            <span className="cb-detail-line">
-              Points at stake: <strong>{originalPoints} point{originalPoints > 1 ? 's' : ''}</strong> (unchanged)
-            </span>
-            <span className="cb-detail-line">
-              Timer: <strong>{originalTimeLimit}s → {timeLimit}s</strong>
+              <strong>{challengerTeamName.toUpperCase()}</strong> challenged <strong>{activeTeamName.toUpperCase()}</strong>.
             </span>
           </div>
         </div>
@@ -277,7 +278,7 @@ export default function QuestionCard({
               <strong>{timeBombActivatorName.toUpperCase()}</strong> shortened {activeTeamName.toUpperCase()}'s timer!
             </span>
             <span className="cb-detail-line">
-              Original time: <strong>{timeLimit}s</strong> • Time reduction: <strong>-{timeBombReduction}s</strong> • New deadline: <strong>{Math.max(0, timeLimit - timeBombReduction)}s</strong>
+              Original time: <strong>{timeLimit}s</strong> • Time reduction: <strong>-{timeBombReduction}s</strong> • New deadline: <strong>{appliedBombRemaining != null ? appliedBombRemaining : Math.max(0, timeLeft - timeBombReduction)}s</strong>
             </span>
             <span className="cb-detail-line">
               The countdown continues normally — answer before the deadline or forfeit the question.
@@ -316,9 +317,9 @@ export default function QuestionCard({
         <h2 className="question-title">{question.question}</h2>
       </div>
 
-      {/* Opponent Power-Up Bar — lets the OPPONENT activate Challenge/TimeBomb
-          while the answering team is on the clock. Never implies a turn switch. */}
-      {!isNoEscapeTarget && (
+      {/* Opponent Power-Up Bar — BEFORE reveal only. Never shown once the
+          question has been revealed (Challenge/TimeBomb are board-time actions). */}
+      {!isNoEscapeTarget && opponentActionsVisible && (
         <div className="opponent-powerups-bar">
           <div className="opponent-pu-label">
             <span>{opposingTeamName} (Opponent):</span>

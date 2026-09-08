@@ -7,7 +7,7 @@ import JsonManagerModal from './components/JsonManagerModal';
 import MatchHistoryModal from './components/MatchHistoryModal';
 import { sounds } from './utils/soundEffects';
 import confetti from 'canvas-confetti';
-import { Trophy, Zap, Play, RotateCcw, Settings, Award, History, Timer } from 'lucide-react';
+import { Trophy, Zap, Play, RotateCcw, Settings, Award, History, Timer, Swords, Bomb } from 'lucide-react';
 
 export default function App() {
   // Game Configuration & Question Data State
@@ -58,6 +58,20 @@ export default function App() {
   // TimeBomb mid-question state
   const [timeBombActive, setTimeBombActive] = useState(false);
 
+  // === Explicit powerup / timer state (follows the existing state architecture) ===
+  // activePowerup mirrors the logical state of the live question/turn.
+  // 'NORMAL_TURN' | 'CHALLENGE_ACTIVE' | 'TIME_BOMB_ACTIVE' | 'NO_ESCAPE_TRANSFER'
+  // | 'NO_ESCAPE_RECEIVER_TURN' | 'QUESTION_RESULT' | 'GAME_OVER'
+  const [activePowerup, setActivePowerup] = useState('NORMAL_TURN');
+  const [challengeActivatedBy, setChallengeActivatedBy] = useState(null); // 'A' | 'B'
+  const [timeBombActivatedBy, setTimeBombActivatedBy] = useState(null); // 'A' | 'B'
+  const [noEscapeActivatedBy, setNoEscapeActivatedBy] = useState(null); // 'A' | 'B'
+  const [noEscapeReceivingTeam, setNoEscapeReceivingTeam] = useState(null); // 'A' | 'B'
+  const [originalQuestionTimer, setOriginalQuestionTimer] = useState(null); // seconds
+  const [currentQuestionDeadline, setCurrentQuestionDeadline] = useState(null); // effective seconds remaining on the authoritative clock
+  const [timerState, setTimerState] = useState('IDLE'); // 'IDLE' | 'RUNNING' | 'PAUSED' | 'STOPPED'
+  const [timeBombDecrease, setTimeBombDecrease] = useState(0); // seconds removed from the remaining time
+
   useEffect(() => {
     if (gameMode !== 'TIE_BREAKER_PREP') return;
     if (tieBreakerPrepSeconds <= 0) {
@@ -74,6 +88,16 @@ export default function App() {
     if (noEscapeRevealSeconds <= 0) return;
     const id = setTimeout(() => setNoEscapeRevealSeconds((s) => s - 1), 1000);
     return () => clearTimeout(id);
+  }, [gameMode, noEscapeRevealSeconds]);
+
+  // When the No Escape 15s transition completes, the receiving team's question
+  // timer starts (the separate transition countdown is NOT the receiver's time).
+  useEffect(() => {
+    if (gameMode !== 'NO_ESCAPE_QUESTION') return;
+    if (noEscapeRevealSeconds > 0) return;
+    setActivePowerup('NO_ESCAPE_RECEIVER_TURN');
+    setTimerState('RUNNING');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameMode, noEscapeRevealSeconds]);
 
   // Load questions on mount
@@ -110,6 +134,15 @@ export default function App() {
     setOriginalQuestionTimeLimit(null);
     setCurrentQuestionDifficulty(null);
     setTimeBombActive(false);
+    setActivePowerup('NORMAL_TURN');
+    setChallengeActivatedBy(null);
+    setTimeBombActivatedBy(null);
+    setNoEscapeActivatedBy(null);
+    setNoEscapeReceivingTeam(null);
+    setOriginalQuestionTimer(null);
+    setCurrentQuestionDeadline(null);
+    setTimerState('IDLE');
+    setTimeBombDecrease(0);
     setGameMode('BOARD');
     sounds.init();
   };
@@ -174,9 +207,12 @@ export default function App() {
     return 30;
   };
 
-  // === CHALLENGE ACTIVATION (opposing team activates during question) ===
+  // === CHALLENGE ACTIVATION (opposing team activates BEFORE reveal) ===
   const handleChallengeActivate = useCallback((challengerTeam) => {
     if (activePowerUp) return;
+    // Enforce rules: Challenge is an OPPONENT powerup usable ONLY before reveal.
+    if (gameMode !== 'BOARD') return;
+    if (challengerTeam === activeTeam) return;
     if (challengerTeam === 'A') {
       setTeamA((prev) => ({ ...prev, powerUps: { ...prev.powerUps, challenge: false } }));
     } else {
@@ -186,6 +222,8 @@ export default function App() {
     const stageRules = getStageRules();
     const escalatedDifficulty = stageRules.difficulty === 'easy' ? 'medium'
       : stageRules.difficulty === 'medium' ? 'hard' : 'very_hard';
+    const escalatedTimeLimits = { easy: 45, medium: 60, hard: 90, very_hard: 120 };
+    const escalatedTime = escalatedTimeLimits[escalatedDifficulty] || stageRules.timeLimit;
     const upgradeQ = getChallengeUpgradeQuestion();
     setOriginalQuestionDifficulty(stageRules.difficulty);
     setOriginalQuestionPoints(stageRules.points);
@@ -194,11 +232,20 @@ export default function App() {
     setChallengeQuestion(upgradeQ);
     setTimeBombActive(false);
     setActivePowerUp({ type: 'challenge', by: challengerTeam });
-  }, [activePowerUp, currentTurnIndex, questionsData]);
+    // Explicit powerup / timer state
+    setActivePowerup('CHALLENGE_ACTIVE');
+    setChallengeActivatedBy(challengerTeam);
+    setOriginalQuestionTimer(stageRules.timeLimit);
+    setCurrentQuestionDeadline(escalatedTime);
+    setTimerState('RUNNING');
+  }, [activePowerUp, currentTurnIndex, questionsData, gameMode, activeTeam]);
 
-  // === TIMEBOMB ACTIVATION (opposing team activates during question) ===
+  // === TIMEBOMB ACTIVATION (opposing team activates BEFORE reveal) ===
   const handleTimeBombActivate = useCallback((bombTeam) => {
     if (activePowerUp) return;
+    // Enforce rules: Time Bomb is an OPPONENT powerup usable ONLY before reveal.
+    if (gameMode !== 'BOARD') return;
+    if (bombTeam === activeTeam) return;
     const stageRules = getStageRules();
     if (stageRules.difficulty === 'easy') return;
     if (bombTeam === 'A') {
@@ -209,11 +256,20 @@ export default function App() {
     sounds.playChallengeAlert();
     setActivePowerUp({ type: 'timeBomb', by: bombTeam });
     setTimeBombActive(true);
-  }, [activePowerUp, currentTurnIndex]);
+    // Explicit powerup / timer state. The reduction is applied to the actual
+    // remaining time inside the question timer (authoritative deadline).
+    setActivePowerup('TIME_BOMB_ACTIVE');
+    setTimeBombActivatedBy(bombTeam);
+    setTimeBombDecrease(getTimeBombReduction(stageRules.difficulty));
+    setTimerState('RUNNING');
+  }, [activePowerUp, currentTurnIndex, gameMode, activeTeam]);
 
   // === NO ESCAPE HANDLER ===
   const handleNoEscape = useCallback(() => {
     if (activePowerUp?.type === 'challenge') return;
+    // Enforce rules: No Escape is usable ONLY by the current answering team
+    // AFTER the question is revealed (i.e., while the question is open).
+    if (gameMode !== 'QUESTION') return;
 
     const currentAnsweringTeam = activeTeam;
 
@@ -239,7 +295,13 @@ export default function App() {
 
     setNoEscapeRevealSeconds(15);
     setGameMode('NO_ESCAPE_QUESTION');
-  }, [activeTeam, activePowerUp, currentTurnIndex, questionsData, originalQuestionPoints, originalQuestionDifficulty]);
+    // Explicit powerup / timer state. Receiving team = the opposite team; its
+    // question clock is PAUSED until the blank 15s transition completes.
+    setActivePowerup('NO_ESCAPE_TRANSFER');
+    setNoEscapeActivatedBy(currentAnsweringTeam);
+    setNoEscapeReceivingTeam(currentAnsweringTeam === 'A' ? 'B' : 'A');
+    setTimerState('PAUSED');
+  }, [activeTeam, activePowerUp, currentTurnIndex, questionsData, originalQuestionPoints, originalQuestionDifficulty, gameMode]);
 
   // === NO ESCAPE RESULT HANDLER ===
   const handleNoEscapeResult = (result) => {
@@ -303,7 +365,9 @@ export default function App() {
   const handleSubmitAnswer = (result) => {
     const { isCorrect, isChallenged: wasChallenged, chosenAnswerText, correctAnswerText, questionText, timeTaken, timeLimit } = result;
     const stageRules = getStageRules();
-    const pts = stageRules.points;
+    // Rope movement and scoring must always use the ORIGINAL question point value,
+    // even when the difficulty was escalated by a Challenge.
+    const pts = originalQuestionPoints ?? stageRules.points;
     let posChange = 0;
 
     const answeringTeam = activeTeam;
@@ -397,12 +461,23 @@ export default function App() {
     setOriginalQuestionPoints(null);
     setOriginalQuestionTimeLimit(null);
     setCurrentQuestionDifficulty(null);
+    setActivePowerup('NORMAL_TURN');
+    setChallengeActivatedBy(null);
+    setTimeBombActivatedBy(null);
+    setNoEscapeActivatedBy(null);
+    setNoEscapeReceivingTeam(null);
+    setOriginalQuestionTimer(null);
+    setCurrentQuestionDeadline(null);
+    setTimeBombDecrease(0);
+    setTimerState('IDLE');
     setGameMode('BOARD');
   };
 
   const triggerGameOver = (winnerName, method) => {
     setWinnerInfo({ name: winnerName, method });
     setGameMode('GAME_OVER');
+    setActivePowerup('GAME_OVER');
+    setTimerState('STOPPED');
     sounds.playVictory();
     confetti({ particleCount: 200, spread: 100, origin: { y: 0.5 } });
   };
@@ -432,6 +507,7 @@ export default function App() {
     : getCurrentQuestion();
   const stageRules = getStageRules();
   const opposingTeamObj = activeTeam === 'A' ? teamB : teamA;
+  const opponentKey = activeTeam === 'A' ? 'B' : 'A';
   const activeTeamObj = activeTeam === 'A' ? teamA : teamB;
 
   // Track original question properties (preserved across powerup activations)
@@ -471,7 +547,6 @@ export default function App() {
         activeTeam={activeTeam}
         soundEnabled={soundEnabled}
         onToggleSound={toggleSound}
-        onOpenJsonManager={() => setIsJsonModalOpen(true)}
         onOpenMatchHistory={() => setIsHistoryModalOpen(true)}
         onResetGame={() => setGameMode('SETUP')}
       />
@@ -546,27 +621,30 @@ export default function App() {
               </div>
               <div className="pre-question-powerups">
                 {opposingTeamObj.powerUps.challenge ? (
-                  <span className="opp-pu-available" title="Challenge: activates while the question is live">
-                    ⚔️ Challenge Ready
-                  </span>
+                  <button
+                    className="btn-opp-pu challenge"
+                    onClick={() => handleChallengeActivate(opponentKey)}
+                    title="Challenge: escalate the difficulty of the question about to be revealed. Points stay the same but the timer becomes the new difficulty's."
+                  >
+                    <Swords size={16} /> ⚔️ CHALLENGE
+                  </button>
                 ) : (
                   <span className="opp-pu-used">⚔️ Challenge Used</span>
                 )}
                 {stageRules.difficulty !== 'easy' ? (
                   opposingTeamObj.powerUps.timeBomb ? (
-                    <span className="opp-pu-available" title="TimeBomb: activates while the question is live">
-                      💣 TimeBomb Ready
-                    </span>
+                    <button
+                      className="btn-opp-pu timebomb"
+                      onClick={() => handleTimeBombActivate(opponentKey)}
+                      title="TimeBomb: reduce the answering team's remaining time when the question is revealed. The rope is unaffected."
+                    >
+                      <Bomb size={16} /> 💣 TIMEBOMB
+                    </button>
                   ) : (
                     <span className="opp-pu-used">💣 TimeBomb Used</span>
                   )
                 ) : (
                   <span className="opp-pu-locked">💣 TimeBomb N/A (Med/Hard)</span>
-                )}
-                {opposingTeamObj.powerUps.noEscape ? (
-                  <span className="opp-pu-available">🚫 No Escape Ready</span>
-                ) : (
-                  <span className="opp-pu-used">🚫 No Escape Used</span>
                 )}
               </div>
             </div>
@@ -587,20 +665,25 @@ export default function App() {
               originalDifficulty={effectiveOriginalDifficulty}
               originalTimeLimit={effectiveOriginalTimeLimit}
               isChallenged={isChallengedNow}
-              challengerTeamName={isChallengedNow ? (activePowerUp.by === 'A' ? teamA.name : teamB.name) : ''}
+              challengerTeamName={challengeActivatedBy ? (challengeActivatedBy === 'A' ? teamA.name : teamB.name) : ''}
               isTimeBombed={activePowerUp?.type === 'timeBomb'}
               timeBombApply={timeBombActive}
               timeBombReduction={activePowerUp?.type === 'timeBomb' ? getTimeBombReduction(stageRules.difficulty) : 0}
-              timeBombActivatorName={activePowerUp?.type === 'timeBomb' ? (activePowerUp.by === 'A' ? teamA.name : teamB.name) : ''}
+              timeBombActivatorName={timeBombActivatedBy === 'A' ? teamA.name : timeBombActivatedBy === 'B' ? teamB.name : ''}
+              onTimeBombApplied={(remaining) => {
+                setCurrentQuestionDeadline(remaining);
+              }}
               activeTeamName={answeringTeamObj.name}
               opposingTeamName={actualOpposingTeamObj.name}
 
-              // Opponent can activate Challenge/TimeBomb in-question if they still own them
-              opponentHasChallenge={actualOpposingTeamObj.powerUps.challenge}
-              opponentHasTimeBomb={actualOpposingTeamObj.powerUps.timeBomb}
+              // Opponent Challenge/TimeBomb are ONLY available BEFORE reveal (on
+              // the board screen). They are never shown once the question opens.
+              opponentActionsVisible={false}
+              opponentHasChallenge={false}
+              opponentHasTimeBomb={false}
               opponentKey={answeringTeamKey === 'A' ? 'B' : 'A'}
-              canActivateChallenge={!isChallengedNow && !timeBombActive && actualOpposingTeamObj.powerUps.challenge}
-              canActivateTimeBomb={!isChallengedNow && !timeBombActive && actualOpposingTeamObj.powerUps.timeBomb && stageRules.difficulty !== 'easy'}
+              canActivateChallenge={false}
+              canActivateTimeBomb={false}
               onActivateChallenge={handleChallengeActivate}
               onActivateTimeBomb={handleTimeBombActivate}
 
@@ -628,11 +711,11 @@ export default function App() {
               isTimeBombed={false}
               timeBombApply={false}
               timeBombReduction={0}
-              activeTeamName={noEscapeData.activatingTeam === 'A' ? teamB.name : teamA.name}
-              opposingTeamName={noEscapeData.activatingTeam === 'A' ? teamA.name : teamB.name}
+              activeTeamName={(noEscapeReceivingTeam ?? (noEscapeData.activatingTeam === 'A' ? 'B' : 'A')) === 'A' ? teamA.name : teamB.name}
+              opposingTeamName={(noEscapeReceivingTeam ?? (noEscapeData.activatingTeam === 'A' ? 'B' : 'A')) === 'A' ? teamB.name : teamA.name}
               noEscapeAvailable={false}
               isNoEscapeTarget={true}
-              noEscapeActivatorName={noEscapeData.activatingTeam === 'A' ? teamA.name : teamB.name}
+              noEscapeActivatorName={noEscapeActivatedBy === 'A' ? teamA.name : noEscapeActivatedBy === 'B' ? teamB.name : ''}
               opponentHasChallenge={false}
               opponentHasTimeBomb={false}
               canActivateChallenge={false}

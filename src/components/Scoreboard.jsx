@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Volume2, VolumeX, Swords, Bomb, ShieldOff, RefreshCw, FileText, History } from 'lucide-react';
+import { Zap, Volume2, VolumeX, Swords, Bomb, ShieldOff, RefreshCw, History } from 'lucide-react';
 
 export default function Scoreboard({
   stage, // 'easy' | 'medium' | 'hard'
@@ -10,7 +10,6 @@ export default function Scoreboard({
   activeTeam,
   soundEnabled,
   onToggleSound,
-  onOpenJsonManager,
   onOpenMatchHistory,
   onResetGame
 }) {
@@ -95,14 +94,6 @@ export default function Scoreboard({
           title="Match History — resolve disputes"
         >
           <History size={18} />
-        </button>
-
-        <button
-          className="btn-icon"
-          onClick={onOpenJsonManager}
-          title="Questions JSON Editor"
-        >
-          <FileText size={18} />
         </button>
 
         <button

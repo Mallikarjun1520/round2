@@ -33,6 +33,10 @@ export default function TieBreaker({
   const timerIntervalRef = useRef(null);
   const selectedOptionRef = useRef(selectedOption);
   const qStartRef = useRef(Date.now());
+  // Single-resolution guard: after the question is resolved (manual submit or
+  // timeout) no further submission is ever allowed, even if a stale timer tick
+  // fires. Timeout with no selection resolves as a wrong answer.
+  const isAnswerSubmittedRef = useRef(false);
   selectedOptionRef.current = selectedOption;
 
   const teamAQuestions = tiebreakerQuestions?.teamA || [];
@@ -51,10 +55,6 @@ export default function TieBreaker({
 
   const getTeamCorrectCount = (teamKey) =>
     history.filter((h) => h.team === teamKey && h.isCorrect).length;
-
-  const totalAnswered = history.length;
-  const isTeamADone = history.filter(h => h.team === 'A').length >= QUESTIONS_PER_TEAM;
-  const isTeamBDone = history.filter(h => h.team === 'B').length >= QUESTIONS_PER_TEAM;
 
   useEffect(() => {
     if (winnerTeam) {
@@ -86,7 +86,9 @@ export default function TieBreaker({
     qStartRef.current = startTime;
     setElapsedMs(0);
     setSelectedOption(null);
+    selectedOptionRef.current = null;
     setIsAnswerSubmitted(false);
+    isAnswerSubmittedRef.current = false;
     setLastCorrect(null);
 
     timerIntervalRef.current = setInterval(() => {
@@ -95,6 +97,8 @@ export default function TieBreaker({
 
       if (diff >= SUDDEN_DEATH_TIME_LIMIT * 1000) {
         clearInterval(timerIntervalRef.current);
+        // Auto-submit whatever is currently selected on timeout. If nothing is
+        // selected this resolves as a wrong (no-answer) result — exactly once.
         submitAnswer(selectedOptionRef.current);
       }
     }, 50);
@@ -106,7 +110,8 @@ export default function TieBreaker({
   }, [questionIndex, activeTeam, winnerTeam, isPrepping]);
 
   const submitAnswer = (optionIdx) => {
-    if (isAnswerSubmitted || winnerTeam) return;
+    if (isAnswerSubmittedRef.current || winnerTeam) return;
+    isAnswerSubmittedRef.current = true;
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
 
     const rawElapsed = Date.now() - qStartRef.current;
@@ -142,14 +147,15 @@ export default function TieBreaker({
   };
 
   const handleSelect = (idx) => {
-    if (isAnswerSubmitted) return;
+    if (isAnswerSubmittedRef.current) return;
+    selectedOptionRef.current = idx;
     setSelectedOption(idx);
   };
 
   const handleManualSubmit = () => {
-    if (isAnswerSubmitted) return;
-    if (selectedOption === null) return;
-    submitAnswer(selectedOption);
+    if (isAnswerSubmittedRef.current) return;
+    if (selectedOptionRef.current === null) return;
+    submitAnswer(selectedOptionRef.current);
   };
 
   const startPrepThenAdvance = (nextActiveTeam, nextQuestionIndex) => {
@@ -189,22 +195,22 @@ export default function TieBreaker({
   };
 
   const handleContinue = () => {
+    // Alternating team-by-team: after the current team answers, hand the same
+    // question to the OTHER team first, then advance the question number and
+    // start again with the first team. Order: A1, B1, A2, B2, ..., A5, B5.
     if (activeTeam === 'A') {
-      if (questionIndex < QUESTIONS_PER_TEAM - 1) {
-        startPrepThenAdvance('A', questionIndex + 1);
-      } else {
-        startPrepThenAdvance('B', 0);
-      }
+      startPrepThenAdvance('B', questionIndex);
       return;
     }
 
     if (questionIndex < QUESTIONS_PER_TEAM - 1) {
-      startPrepThenAdvance('B', questionIndex + 1);
+      startPrepThenAdvance('A', questionIndex + 1);
       return;
     }
 
-    const updatedHistory = [...history, { team: 'B', isCorrect: lastCorrect, timeMs: lastTimeMs, questionIdx: questionIndex }];
-    decideWinner(updatedHistory);
+    // Both teams have answered their 5th question — history is already
+    // up to date (this runs after the final submission), so no manual append.
+    decideWinner(history);
   };
 
   const formatMs = (ms) => `${(ms / 1000).toFixed(2)}s`;
@@ -357,12 +363,10 @@ export default function TieBreaker({
         <h3>{activeTeamObj.name}'S TURN</h3>
         <span className="tb-active-team-sub">
           {activeTeam === 'A'
-            ? isTeamADone
-              ? 'All questions complete!'
-              : `${teamB.name} has not started yet.`
-            : isTeamBDone
-            ? 'All questions complete — deciding winner...'
-            : `${teamA.name} has completed their questions.`}
+            ? `Question ${questionIndex + 1} of ${QUESTIONS_PER_TEAM} — ${teamB.name} answers next.`
+            : questionIndex < QUESTIONS_PER_TEAM - 1
+            ? `Question ${questionIndex + 1} of ${QUESTIONS_PER_TEAM} — ${teamA.name} answers next.`
+            : 'Final question — winner decided after this round.'}
         </span>
       </div>
 
@@ -436,18 +440,14 @@ export default function TieBreaker({
               {lastCorrect
                 ? `Correct in ${formatMs(lastTimeMs)}!`
                 : 'Incorrect!'}
-              {activeTeam === 'A' && questionIndex < QUESTIONS_PER_TEAM - 1
-                ? ` — Next question for ${teamA.name} coming up.`
-                : activeTeam === 'A'
-                ? ` — ${teamA.name} complete! ${teamB.name}'s turn next.`
+              {activeTeam === 'A'
+                ? ` — Now ${teamB.name}'s turn: Question ${questionIndex + 1}.`
                 : questionIndex < QUESTIONS_PER_TEAM - 1
-                ? ` — Next question for ${teamB.name} coming up.`
+                ? ` — Now ${teamA.name}'s turn: Question ${questionIndex + 2}.`
                 : ` — All questions complete. Deciding winner...`}
             </div>
             <button className="btn-next-tb" onClick={handleContinue}>
-              {activeTeam === 'A' && questionIndex < QUESTIONS_PER_TEAM - 1
-                ? `QUESTION ${questionIndex + 2}`
-                : activeTeam === 'A'
+              {activeTeam === 'A'
                 ? `${teamB.name}'S TURN`
                 : questionIndex < QUESTIONS_PER_TEAM - 1
                 ? `QUESTION ${questionIndex + 2}`
