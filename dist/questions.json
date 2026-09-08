@@ -1,0 +1,106 @@
+{
+  "gameTitle": "Tug of War Championship - Round 2",
+  "rules": {
+    "easy": { "timeLimit": 45, "points": 1, "countPerTeam": 6 },
+    "medium": { "timeLimit": 60, "points": 2, "countPerTeam": 6 },
+    "hard": { "timeLimit": 90, "points": 3, "countPerTeam": 6 },
+    "knockoutThreshold": 26
+  },
+  "questions": {
+    "teamA": {
+      "easy": [
+        { "id": "ta_e1", "question": "What does HTML stand for?", "options": ["Hyper Text Markup Language", "High Text Machine Language", "Hyperlinks and Text Markup Language", "Home Tool Markup Language"], "correctIndex": 0, "explanation": "HTML is the standard markup language for creating Web pages." },
+        { "id": "ta_e2", "question": "What is the chemical symbol for gold?", "options": ["Ag", "Au", "Pb", "Fe"], "correctIndex": 1, "explanation": "Au comes from the Latin word for gold, 'aurum'." },
+        { "id": "ta_e3", "question": "What is the square root of 144?", "options": ["10", "12", "14", "16"], "correctIndex": 1, "explanation": "12 multiplied by 12 equals 144." },
+        { "id": "ta_e4", "question": "Who is known as the father of the World Wide Web?", "options": ["Bill Gates", "Steve Jobs", "Tim Berners-Lee", "Vint Cerf"], "correctIndex": 2, "explanation": "Tim Berners-Lee invented the World Wide Web in 1989." },
+        { "id": "ta_e5", "question": "Which planet is known as the Red Planet?", "options": ["Venus", "Mars", "Jupiter", "Saturn"], "correctIndex": 1, "explanation": "Mars appears red due to iron oxide (rust) on its surface." },
+        { "id": "ta_e6", "question": "What is the main function of RAM in a computer?", "options": ["Long-term storage", "Processing graphics", "Short-term data storage", "Powering the CPU"], "correctIndex": 2, "explanation": "RAM provides fast, short-term memory for the CPU to access data quickly." }
+      ],
+      "medium": [
+        { "id": "ta_m1", "question": "What is the time complexity of a binary search algorithm?", "options": ["O(1)", "O(n)", "O(n log n)", "O(log n)"], "correctIndex": 3, "explanation": "Binary search halves the search space at each step, taking logarithmic time." },
+        { "id": "ta_m2", "question": "What is the powerhouse of the cell?", "options": ["Nucleus", "Ribosome", "Mitochondrion", "Endoplasmic reticulum"], "correctIndex": 2, "explanation": "Mitochondria generate most of the cell's supply of adenosine triphosphate (ATP)." },
+        { "id": "ta_m3", "question": "What is the value of Pi to two decimal places?", "options": ["3.12", "3.14", "3.16", "3.18"], "correctIndex": 1, "explanation": "Pi is approximately 3.14159..." },
+        { "id": "ta_m4", "question": "In what year was the first iPhone released?", "options": ["2005", "2006", "2007", "2008"], "correctIndex": 2, "explanation": "Steve Jobs introduced the first iPhone on January 9, 2007." },
+        { "id": "ta_m5", "question": "What is the capital of Australia?", "options": ["Sydney", "Melbourne", "Canberra", "Brisbane"], "correctIndex": 2, "explanation": "Canberra was chosen as the capital in 1908 as a compromise between Sydney and Melbourne." },
+        { "id": "ta_m6", "question": "Which data structure operates on a Last In, First Out (LIFO) principle?", "options": ["Queue", "Stack", "Tree", "Graph"], "correctIndex": 1, "explanation": "A stack follows the LIFO principle, where the last element added is the first one removed." }
+      ],
+      "hard": [
+        { "id": "ta_h1", "question": "Which sorting algorithm is typically implemented as an in-place, unstable sort with average O(n log n) complexity?", "options": ["Merge Sort", "Bubble Sort", "Quicksort", "Insertion Sort"], "correctIndex": 2, "explanation": "Quicksort is an efficient, in-place sorting algorithm that is typically unstable." },
+        { "id": "ta_h2", "question": "What is the most abundant gas in the Earth's atmosphere?", "options": ["Oxygen", "Carbon Dioxide", "Nitrogen", "Argon"], "correctIndex": 2, "explanation": "Nitrogen makes up about 78% of the Earth's atmosphere." },
+        { "id": "ta_h3", "question": "What is the derivative of sin(x) with respect to x?", "options": ["-sin(x)", "cos(x)", "-cos(x)", "tan(x)"], "correctIndex": 1, "explanation": "The rate of change of the sine function is the cosine function." },
+        { "id": "ta_h4", "question": "Which company developed the ARM architecture?", "options": ["Intel", "AMD", "Acorn Computers", "IBM"], "correctIndex": 2, "explanation": "ARM originally stood for Acorn RISC Machine, developed by Acorn Computers." },
+        { "id": "ta_h5", "question": "Who wrote the novel '1984'?", "options": ["Aldous Huxley", "George Orwell", "Ray Bradbury", "Arthur C. Clarke"], "correctIndex": 1, "explanation": "George Orwell published the dystopian social science fiction novel '1984' in 1949." },
+        { "id": "ta_h6", "question": "What does ACID stand for in the context of database transactions?", "options": ["Atomicity, Consistency, Isolation, Durability", "Accuracy, Consistency, Information, Data", "Automated, Concurrent, Isolated, Durable", "Asynchronous, Consistent, Independent, Distributed"], "correctIndex": 0, "explanation": "ACID properties guarantee that database transactions are processed reliably." }
+      ]
+    },
+    "teamB": {
+      "easy": [
+        { "id": "tb_e1", "question": "What does CPU stand for?", "options": ["Computer Personal Unit", "Central Processing Unit", "Central Process Unit", "Core Processing Unit"], "correctIndex": 1, "explanation": "The CPU is the primary component of a computer that acts as its 'brain'." },
+        { "id": "tb_e2", "question": "What is the hardest natural substance on Earth?", "options": ["Gold", "Iron", "Diamond", "Quartz"], "correctIndex": 2, "explanation": "Diamonds are made of carbon atoms arranged in a rigid crystal structure." },
+        { "id": "tb_e3", "question": "What is 15 multiplied by 4?", "options": ["45", "50", "60", "75"], "correctIndex": 2, "explanation": "15 times 4 equals 60." },
+        { "id": "tb_e4", "question": "Which company created the Android operating system?", "options": ["Apple", "Microsoft", "Android Inc.", "Nokia"], "correctIndex": 2, "explanation": "Android Inc. originally created the OS before being acquired by Google in 2005." },
+        { "id": "tb_e5", "question": "What is the largest ocean on Earth?", "options": ["Atlantic Ocean", "Indian Ocean", "Arctic Ocean", "Pacific Ocean"], "correctIndex": 3, "explanation": "The Pacific Ocean is the largest and deepest of Earth's oceanic divisions." },
+        { "id": "tb_e6", "question": "What does an HTTP 404 error mean?", "options": ["Bad Request", "Unauthorized", "Not Found", "Internal Server Error"], "correctIndex": 2, "explanation": "A 404 error indicates that the server cannot find the requested resource." }
+      ],
+      "medium": [
+        { "id": "tb_m1", "question": "Which programming paradigm does Java primarily follow?", "options": ["Functional Programming", "Procedural Programming", "Object-Oriented Programming", "Logic Programming"], "correctIndex": 2, "explanation": "Java is heavily based on concepts of objects, classes, and encapsulation." },
+        { "id": "tb_m2", "question": "What is the speed of light in a vacuum (approximately)?", "options": ["150,000 km/s", "300,000 km/s", "450,000 km/s", "600,000 km/s"], "correctIndex": 1, "explanation": "The speed of light in a vacuum is exactly 299,792,458 metres per second." },
+        { "id": "tb_m3", "question": "What is the Pythagorean theorem formula?", "options": ["a + b = c", "a^2 + b^2 = c^2", "E = mc^2", "F = ma"], "correctIndex": 1, "explanation": "It relates the lengths of the sides of a right triangle." },
+        { "id": "tb_m4", "question": "What does 'IoT' stand for?", "options": ["Internet of Technology", "Integration of Things", "Internet of Things", "Input Output Transfer"], "correctIndex": 2, "explanation": "IoT refers to physical devices connected to the internet, collecting and sharing data." },
+        { "id": "tb_m5", "question": "Who painted the Mona Lisa?", "options": ["Vincent van Gogh", "Pablo Picasso", "Michelangelo", "Leonardo da Vinci"], "correctIndex": 3, "explanation": "Leonardo da Vinci painted the Mona Lisa during the Italian Renaissance." },
+        { "id": "tb_m6", "question": "Which protocol is used to transfer files securely over the internet?", "options": ["FTP", "HTTP", "SFTP", "SMTP"], "correctIndex": 2, "explanation": "SFTP (SSH File Transfer Protocol) provides secure file transfer capabilities." }
+      ],
+      "hard": [
+        { "id": "tb_h1", "question": "In the OSI model, which layer is responsible for routing and logical addressing?", "options": ["Data Link Layer", "Network Layer", "Transport Layer", "Session Layer"], "correctIndex": 1, "explanation": "The Network Layer handles packet routing and logical addressing (e.g., IP addresses)." },
+        { "id": "tb_h2", "question": "What is the theoretical temperature at which all molecular motion stops?", "options": ["0 Fahrenheit", "0 Celsius", "Absolute Zero (0 Kelvin)", "Negative 273.15 Fahrenheit"], "correctIndex": 2, "explanation": "Absolute Zero is the lowest limit of the thermodynamic temperature scale." },
+        { "id": "tb_h3", "question": "What is the sum of the interior angles of a hexagon?", "options": ["360 degrees", "540 degrees", "720 degrees", "900 degrees"], "correctIndex": 2, "explanation": "The sum is given by (n-2) * 180 = (6-2) * 180 = 720 degrees." },
+        { "id": "tb_h4", "question": "Who is the primary author of the Linux kernel?", "options": ["Richard Stallman", "Ken Thompson", "Linus Torvalds", "Dennis Ritchie"], "correctIndex": 2, "explanation": "Linus Torvalds created Linux in 1991." },
+        { "id": "tb_h5", "question": "Which element has the highest melting point?", "options": ["Iron", "Tungsten", "Platinum", "Titanium"], "correctIndex": 1, "explanation": "Tungsten has the highest melting point of all elements discovered, melting at 3422 degrees C." },
+        { "id": "tb_h6", "question": "What is the halting problem an example of?", "options": ["An NP-complete problem", "An undecidable problem", "A P problem", "An O(1) problem"], "correctIndex": 1, "explanation": "Alan Turing proved that a general algorithm to solve the halting problem for all possible program-input pairs cannot exist." }
+      ]
+    },
+    "challenge_upgrades": {
+      "medium": [
+        { "id": "cu_m1", "question": "What does SQL stand for?", "options": ["Standard Query Language", "Structured Query Language", "Simple Query Language", "Sequential Query Language"], "correctIndex": 1, "explanation": "SQL is a standard language for accessing and manipulating databases." },
+        { "id": "cu_m2", "question": "What type of bond involves the sharing of electron pairs between atoms?", "options": ["Ionic bond", "Hydrogen bond", "Covalent bond", "Metallic bond"], "correctIndex": 2, "explanation": "A covalent bond is a chemical bond that involves the sharing of electron pairs." },
+        { "id": "cu_m3", "question": "What is the next prime number after 13?", "options": ["15", "17", "19", "21"], "correctIndex": 1, "explanation": "17 is the next number divisible only by 1 and itself." },
+        { "id": "cu_m4", "question": "What does BIOS stand for?", "options": ["Basic Integrated Output System", "Binary Input Output System", "Basic Input/Output System", "Broad Interface Operating System"], "correctIndex": 2, "explanation": "BIOS is firmware used to perform hardware initialization during the booting process." },
+        { "id": "cu_m5", "question": "Which continent is the Sahara Desert located in?", "options": ["Asia", "South America", "Africa", "Australia"], "correctIndex": 2, "explanation": "The Sahara is a desert spanning across Northern Africa." },
+        { "id": "cu_m6", "question": "What is the default port number for HTTP?", "options": ["21", "22", "80", "443"], "correctIndex": 2, "explanation": "HTTP conventionally uses TCP port 80." }
+      ],
+      "hard": [
+        { "id": "cu_h1", "question": "Which design pattern restricts the instantiation of a class to one single object?", "options": ["Factory", "Observer", "Singleton", "Decorator"], "correctIndex": 2, "explanation": "The Singleton pattern ensures a class only has one instance and provides a global point of access to it." },
+        { "id": "cu_h2", "question": "What is the term for a star that has suddenly increased greatly in brightness because of a catastrophic explosion?", "options": ["Pulsar", "Quasar", "Supernova", "Nebula"], "correctIndex": 2, "explanation": "A supernova is a powerful and luminous stellar explosion." },
+        { "id": "cu_h3", "question": "What is the integral of 1/x dx?", "options": ["-1/x^2 + C", "ln|x| + C", "e^x + C", "x^2/2 + C"], "correctIndex": 1, "explanation": "The antiderivative of 1/x is the natural logarithm of the absolute value of x." },
+        { "id": "cu_h4", "question": "What is the name of the first artificial Earth satellite?", "options": ["Apollo 11", "Vostok 1", "Sputnik 1", "Explorer 1"], "correctIndex": 2, "explanation": "Sputnik 1 was launched by the Soviet Union on October 4, 1957." },
+        { "id": "cu_h5", "question": "Who was the first woman to win a Nobel Prize?", "options": ["Rosalind Franklin", "Marie Curie", "Ada Lovelace", "Jane Goodall"], "correctIndex": 1, "explanation": "Marie Curie won the Nobel Prize in Physics in 1903." },
+        { "id": "cu_h6", "question": "In database normalization, what does BCNF stand for?", "options": ["Binary Coded Normal Form", "Boyce-Codd Normal Form", "Basic Common Normal Form", "Balanced Core Normal Form"], "correctIndex": 1, "explanation": "BCNF is a slightly stronger version of the Third Normal Form (3NF)." }
+      ],
+      "very_hard": [
+        { "id": "cu_vh1", "question": "Which of the following is NOT a feature of purely functional programming languages?", "options": ["First-class functions", "Immutable data", "Mutable state", "Referential transparency"], "correctIndex": 2, "explanation": "Purely functional programming avoids mutable state and side-effects." },
+        { "id": "cu_vh2", "question": "In quantum mechanics, what principle states that it is impossible to simultaneously know both the exact position and momentum of a particle?", "options": ["Pauli Exclusion Principle", "Heisenberg Uncertainty Principle", "Schrödinger's Cat", "Bohr Model"], "correctIndex": 1, "explanation": "Introduced by Werner Heisenberg in 1927." },
+        { "id": "cu_vh3", "question": "What is the Euler characteristic of a torus?", "options": ["0", "1", "2", "-2"], "correctIndex": 0, "explanation": "For a torus, the Euler characteristic (V - E + F) equals 0." },
+        { "id": "cu_vh4", "question": "What encryption algorithm was selected as the Advanced Encryption Standard (AES)?", "options": ["Twofish", "Serpent", "RC6", "Rijndael"], "correctIndex": 3, "explanation": "Rijndael was selected by NIST to become the AES." },
+        { "id": "cu_vh5", "question": "Which functional group is characterized by a carbonyl group bonded to a hydroxyl group?", "options": ["Aldehyde", "Ketone", "Carboxyl", "Ether"], "correctIndex": 2, "explanation": "A carboxyl group (COOH) defines a carboxylic acid." },
+        { "id": "cu_vh6", "question": "What is the time complexity of finding the shortest path using Dijkstra's algorithm with a Fibonacci heap?", "options": ["O(V^2)", "O(E log V)", "O(E + V log V)", "O(V + E)"], "correctIndex": 2, "explanation": "Using a Fibonacci heap improves the time complexity for sparse graphs to O(E + V log V)." }
+      ]
+    },
+    "tiebreaker": {
+      "teamA": [
+        { "id": "tb_a1", "question": "Which data structure uses FIFO (First In, First Out) ordering?", "options": ["Stack", "Queue", "Tree", "Graph"], "correctIndex": 1, "explanation": "A queue follows the FIFO principle, where the first element added is the first removed.", "hint": "Think of a line at a ticket counter — the person who arrives first gets served first." },
+        { "id": "tb_a2", "question": "What is the powerhouse of the cell?", "options": ["Nucleus", "Ribosome", "Mitochondrion", "Endoplasmic reticulum"], "correctIndex": 2, "explanation": "Mitochondria generate most of the cell's supply of adenosine triphosphate (ATP).", "hint": "This organelle is often called the 'powerhouse' because it produces ATP energy." },
+        { "id": "tb_a3", "question": "What does CSS stand for in web development?", "options": ["Computer Style Sheets", "Creative Style System", "Cascading Style Sheets", "Colorful Style Sheets"], "correctIndex": 2, "explanation": "CSS stands for Cascading Style Sheets, used to style HTML elements.", "hint": "The first word describes how styles are layered and prioritized — like a waterfall effect." },
+        { "id": "tb_a4", "question": "In which year did World War II end?", "options": ["1943", "1944", "1945", "1946"], "correctIndex": 2, "explanation": "World War II ended in 1945 with the surrender of Germany in May and Japan in September.", "hint": "The war ended in the mid-1940s, shortly after the atomic bombs were dropped on Japan." },
+        { "id": "tb_a5", "question": "What is the boiling point of water at sea level in Celsius?", "options": ["90°C", "95°C", "100°C", "110°C"], "correctIndex": 2, "explanation": "Water boils at 100°C (212°F) at standard atmospheric pressure at sea level.", "hint": "This is a round number often used as a reference point on thermometers — think of a perfect score in many grading systems." }
+      ],
+      "teamB": [
+        { "id": "tb_b1", "question": "Which sorting algorithm has the worst-case time complexity of O(n^2)?", "options": ["Merge Sort", "Quick Sort", "Bubble Sort", "Heap Sort"], "correctIndex": 2, "explanation": "Bubble Sort compares adjacent elements and swaps them, with O(n^2) worst case.", "hint": "This algorithm 'bubbles' the largest elements to the top by repeatedly comparing neighbors." },
+        { "id": "tb_b2", "question": "What is the chemical symbol for iron?", "options": ["Ir", "Fe", "In", "Io"], "correctIndex": 1, "explanation": "Fe comes from the Latin word 'ferrum' meaning iron.", "hint": "This symbol comes from a Latin word. It is also the element that gives blood its red color." },
+        { "id": "tb_b3", "question": "Who painted the ceiling of the Sistine Chapel?", "options": ["Leonardo da Vinci", "Raphael", "Michelangelo", "Donatello"], "correctIndex": 2, "explanation": "Michelangelo painted the Sistine Chapel ceiling between 1508 and 1512.", "hint": "This Renaissance artist shares his first name with a famous pizza-loving turtle." },
+        { "id": "tb_b4", "question": "What is the largest planet in our solar system?", "options": ["Saturn", "Jupiter", "Neptune", "Uranus"], "correctIndex": 1, "explanation": "Jupiter is the largest planet, with a diameter of about 143,000 km.", "hint": "This planet is named after the king of the Roman gods and has a famous Great Red Spot." },
+        { "id": "tb_b5", "question": "What is 7 multiplied by 8?", "options": ["48", "54", "56", "64"], "correctIndex": 2, "explanation": "7 × 8 = 56.", "hint": "The answer is between 50 and 60. Think of the multiplication table: 7 times 7 is 49, so add one more 7." }
+      ]
+    }
+
+  }
+}
