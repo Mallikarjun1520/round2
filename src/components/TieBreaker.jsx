@@ -339,61 +339,58 @@ export default function TieBreaker({
     if (winReason === 'DEAD_TIE') {
       return (
         <div className="tiebreaker-results-card">
-          <Trophy className="trophy-gold" size={64} />
-          <h2>IT'S A TIE!</h2>
+          <Trophy className="trophy-gold" size={56} />
+          <h2 style={{ color: 'var(--accent-gold)' }}>IT'S A TIE!</h2>
           <p className="tb-elimination-summary">
             Both teams matched — no winner could be determined.
           </p>
           <button className="btn-finish-all" onClick={() => onFinishTieBreaker('TIE GAME!')}>
-            COMPLETE ROUND 2 <ArrowRight size={20} />
+            COMPLETE ROUND 2 <ArrowRight size={18} />
           </button>
         </div>
       );
     }
 
     const winnerObj = winnerTeam === 'A' ? teamA : teamB;
-    // When the winner was decided by the FIRST-18-question fallback (both teams
-    // got every tie-breaker question wrong), the tie-breaker stats (0/5, 0.00s)
-    // are meaningless — hide the comparison cards entirely in that case.
     const isFirst18Decision =
       winReason === 'FIRST_ROUND_MORE_CORRECT' || winReason === 'FIRST_ROUND_FASTER_TIME';
 
     return (
       <div className="tiebreaker-results-card">
-        <Trophy className="trophy-gold" size={64} />
-        <h2>TIE BREAKER CHAMPION!</h2>
+        <Trophy className="trophy-gold" size={56} />
+        <h2 style={{ color: 'var(--accent-gold)' }}>SUDDEN DEATH CHAMPION!</h2>
         <h1 className="winner-title">{winnerObj.name}</h1>
         <p className="tb-elimination-summary">
           {winReason === 'MORE_CORRECT'
             ? `${winnerObj.name} answered more questions correctly!`
             : winReason === 'FIRST_ROUND_MORE_CORRECT'
-            ? `Both teams missed every tie-breaker question — ${winnerObj.name} had more correct answers in the opening 18 questions!`
+            ? `Both teams missed every tie-breaker question — ${winnerObj.name} had more correct answers in the opening 18!`
             : winReason === 'FIRST_ROUND_FASTER_TIME'
-            ? `Both teams missed every tie-breaker question — ${winnerObj.name} had the faster total time on correct answers in the opening 18 questions!`
+            ? `Both teams missed every tie-breaker question — ${winnerObj.name} had the faster total time in the opening 18!`
             : `Both teams matched — ${winnerObj.name} wins with the faster total time!`}
         </p>
 
         {!isFirst18Decision && (
           <div className="tiebreaker-comparison-grid">
             <div className={`team-res-card ${winnerTeam === 'A' ? 'winner-card' : ''}`}>
-              <h3>{teamA.name}</h3>
+              <h3 style={{ color: 'var(--team-a-color)' }}>{teamA.name}</h3>
               <div className="res-stat">
-                <span>Correct Answers:</span>
+                <span>Correct:</span>
                 <strong>{getTeamCorrectCount('A')} / {QUESTIONS_PER_TEAM}</strong>
               </div>
               <div className="res-stat">
-                <span>Total Time (correct only):</span>
+                <span>Total Time:</span>
                 <strong>{formatMs(getTeamTotalTime('A'))}</strong>
               </div>
             </div>
             <div className={`team-res-card ${winnerTeam === 'B' ? 'winner-card' : ''}`}>
-              <h3>{teamB.name}</h3>
+              <h3 style={{ color: 'var(--team-b-color)' }}>{teamB.name}</h3>
               <div className="res-stat">
-                <span>Correct Answers:</span>
+                <span>Correct:</span>
                 <strong>{getTeamCorrectCount('B')} / {QUESTIONS_PER_TEAM}</strong>
               </div>
               <div className="res-stat">
-                <span>Total Time (correct only):</span>
+                <span>Total Time:</span>
                 <strong>{formatMs(getTeamTotalTime('B'))}</strong>
               </div>
             </div>
@@ -401,7 +398,7 @@ export default function TieBreaker({
         )}
 
         <button className="btn-finish-all" onClick={() => onFinishTieBreaker(winnerObj.name)}>
-          COMPLETE ROUND 2 <ArrowRight size={20} />
+          COMPLETE ROUND 2 <ArrowRight size={18} />
         </button>
       </div>
     );
@@ -423,21 +420,20 @@ export default function TieBreaker({
     return (
       <div className="tiebreaker-container">
         <div className="tiebreaker-banner">
-          <Zap className="bolt-icon" size={28} />
+          <Zap className="bolt-icon" size={24} />
           <div>
-            <h2>TIE BREAKER</h2>
+            <h2>SUDDEN DEATH</h2>
             <p>
-              Each team answers 5 separate questions. The team with more correct answers wins.
-              If tied, fastest total time (correct answers only) decides!
+              Each team answers 5 questions. Most correct wins. Ties broken by fastest time.
             </p>
           </div>
         </div>
 
         <div className="board-launch-card" style={{ textAlign: 'center' }}>
-          <Timer size={48} />
+          <Timer size={40} style={{ color: 'var(--accent-gold)' }} />
           <h2>Get Ready — {upcomingTeamObj.name}!</h2>
-          <p>Next tie-breaker question in:</p>
-          <div className="tiebreaker-prep-countdown" style={{ fontSize: '4rem', fontWeight: 800, marginTop: '1rem' }}>
+          <p>Next sudden-death question in:</p>
+          <div style={{ fontSize: '3.5rem', fontWeight: 900, marginTop: '0.5rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-gold)' }}>
             {prepSecondsLeft}
           </div>
         </div>
@@ -448,12 +444,11 @@ export default function TieBreaker({
   return (
     <div className="tiebreaker-container">
       <div className="tiebreaker-banner">
-        <Zap className="bolt-icon" size={28} />
+        <Zap className="bolt-icon" size={24} />
         <div>
-          <h2>TIE BREAKER</h2>
+          <h2>SUDDEN DEATH</h2>
           <p>
-            Each team answers 5 separate questions. The team with more correct answers wins.
-            If tied, fastest total time (correct answers only) decides!
+            Each team answers 5 questions. Most correct wins. Ties broken by fastest time.
           </p>
         </div>
       </div>
@@ -466,7 +461,7 @@ export default function TieBreaker({
               className={`tb-history-chip ${h.team === 'A' ? 'color-a' : 'color-b'} ${h.isCorrect ? 'tb-chip-correct' : 'tb-chip-wrong'}`}
               title={`${h.team === 'A' ? teamA.name : teamB.name} Q${h.questionIdx + 1}: ${h.isCorrect ? 'Correct' : 'Wrong'} (${formatMs(h.timeMs)})`}
             >
-              {h.isCorrect ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+              {h.isCorrect ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
             </span>
           ))}
         </div>
@@ -474,16 +469,16 @@ export default function TieBreaker({
 
       <div className="tb-time-tally">
         <span className="tb-time-chip color-a">
-          <Gauge size={14} /> {teamA.name}: {getTeamCorrectCount('A')} / {QUESTIONS_PER_TEAM} ({formatMs(getTeamTotalTime('A'))})
+          <Gauge size={12} /> {teamA.name}: {getTeamCorrectCount('A')}/{QUESTIONS_PER_TEAM} ({formatMs(getTeamTotalTime('A'))})
         </span>
         <span className="tb-time-chip color-b">
-          <Gauge size={14} /> {teamB.name}: {getTeamCorrectCount('B')} / {QUESTIONS_PER_TEAM} ({formatMs(getTeamTotalTime('B'))})
+          <Gauge size={12} /> {teamB.name}: {getTeamCorrectCount('B')}/{QUESTIONS_PER_TEAM} ({formatMs(getTeamTotalTime('B'))})
         </span>
       </div>
 
       <div className={`tb-active-team-banner ${activeTeam === 'A' ? 'color-a' : 'color-b'}`}>
         <span className="tb-active-team-label">
-          {activeTeam === 'A' ? teamA.name : teamB.name} — Question {questionIndex + 1} of {QUESTIONS_PER_TEAM} ({getDifficultyLabel(questionIndex)})
+          {activeTeam === 'A' ? teamA.name : teamB.name} — Q{questionIndex + 1}/{QUESTIONS_PER_TEAM} ({getDifficultyLabel(questionIndex)})
         </span>
         <h3>{activeTeamObj.name}'S TURN</h3>
         <span className="tb-active-team-sub">
@@ -496,12 +491,12 @@ export default function TieBreaker({
       </div>
 
       <div className="tiebreaker-status-bar">
-        <div className="active-team-indicator">
-          Playing Now: <strong>{activeTeamObj.name}</strong>
+        <div className="active-team-indicator" style={{ fontWeight: 700 }}>
+          Playing: <strong>{activeTeamObj.name}</strong>
         </div>
         <div className="speed-timer-pill">
-          <Timer size={18} />
-          <span>Time: {formatMs(elapsedMs)} / {SUDDEN_DEATH_TIME_LIMIT}s</span>
+          <Timer size={16} />
+          <span>{formatMs(elapsedMs)} / {SUDDEN_DEATH_TIME_LIMIT}s</span>
         </div>
       </div>
 
@@ -511,7 +506,7 @@ export default function TieBreaker({
 
       {showHint && currentQ.hint && (
         <div className="tb-hint-banner">
-          <Lightbulb size={22} />
+          <Lightbulb size={18} />
           <div>
             <strong>HINT:</strong> {currentQ.hint}
           </div>
@@ -519,7 +514,18 @@ export default function TieBreaker({
       )}
 
       <div className="tiebreaker-q-card">
-        <h3 className="tb-question-text">{currentQ.question}</h3>
+        {currentQ.presentation?.type === 'code' ? (
+          <div className="question-code-block-container">
+            <h3 className="tb-question-text code-prompt">
+              {currentQ.presentation.prompt || 'Analyze the code below:'}
+            </h3>
+            <pre className="code-display-block">
+              <code>{currentQ.presentation.code}</code>
+            </pre>
+          </div>
+        ) : (
+          <h3 className="tb-question-text">{currentQ.question}</h3>
+        )}
 
         <div className="options-grid">
           {currentQ.options.map((opt, idx) => {
@@ -548,7 +554,7 @@ export default function TieBreaker({
 
         {!isAnswerSubmitted && (
           <div className="tb-next-footer">
-            <span className="key-hint">Select an option, then click SUBMIT. Auto-submit on time-out.</span>
+            <span className="key-hint">Select an option, then SUBMIT. Auto-submit on timeout.</span>
             <button
               className="btn-submit-answer"
               onClick={handleManualSubmit}
@@ -566,17 +572,17 @@ export default function TieBreaker({
                 ? `Correct in ${formatMs(lastTimeMs)}!`
                 : 'Incorrect!'}
               {activeTeam === 'A'
-                ? ` — Now ${teamB.name}'s turn: Question ${questionIndex + 1}.`
+                ? ` — Now ${teamB.name}'s turn.`
                 : questionIndex < QUESTIONS_PER_TEAM - 1
-                ? ` — Now ${teamA.name}'s turn: Question ${questionIndex + 2}.`
-                : ` — All questions complete. Deciding winner...`}
+                ? ` — Now ${teamA.name}'s turn.`
+                : ' — All questions complete. Deciding winner...'}
             </div>
             <button className="btn-next-tb" onClick={handleContinue}>
               {activeTeam === 'A'
                 ? `${teamB.name}'S TURN`
                 : questionIndex < QUESTIONS_PER_TEAM - 1
                 ? `QUESTION ${questionIndex + 2}`
-                : 'SEE FINAL RESULT'} <ArrowRight size={18} />
+                : 'SEE RESULT'} <ArrowRight size={16} />
             </button>
           </div>
         )}

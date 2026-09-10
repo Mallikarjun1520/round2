@@ -685,7 +685,7 @@ export default function App() {
       <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center' }}>
         <div className="loading-screen">
           <div className="loading-spinner"></div>
-          <h2>Loading Code Clash...</h2>
+          <h2>Loading Tug of War...</h2>
         </div>
       </div>
     );
@@ -768,8 +768,8 @@ export default function App() {
         }}
       />
 
-      {/* Main Game Screen */}
-      {gameMode !== 'SETUP' && (
+      {/* Main Game Screen — Arena / Pre-Reveal State */}
+      {gameMode === 'BOARD' && (
         <RopeVisualizer
           ropePosition={ropePosition}
           teamA={teamA}
@@ -784,66 +784,65 @@ export default function App() {
       {gameMode === 'BOARD' && (
         <div className="board-launch-overlay">
           <div className="board-launch-card">
-            
             <div className="active-turn-section">
               <div className="turn-identity">
                 <div className="turn-label" style={{ color: activeTeam === 'A' ? 'var(--team-a-color)' : 'var(--team-b-color)' }}>
-                  {activeTeamObj.name}'s Turn
+                  {activeTeamObj.name.toUpperCase()}'S TURN
                 </div>
                 <div className="turn-sub">
-                  <span className={`level-indicator-badge badge-${stageRules.difficulty}`}>
-                    {stageRules.difficulty.toUpperCase()} LEVEL • {stageRules.points} PTS
+                  <span className="level-indicator-badge">
+                    {stageRules.difficulty.toUpperCase()} | {stageRules.points} PTS | {stageRules.timeLimit}S
                   </span>
                 </div>
               </div>
-              
+
               <div className="active-team-powerups">
                 {activeTeamObj.powerUps.challenge ? (
-                  <span className="pu-available-badge no-escape-preview" title="Can be used by the OPPONENT while your team is answering">
-                    ⚔️ Challenge Available
+                  <span className="pu-available-badge" title="Can be used by the OPPONENT while your team is answering">
+                    🟢 Challenge Available
                   </span>
                 ) : (
-                  <span className="pu-used-badge">⚔️ Challenge Used</span>
+                  <span className="pu-used-badge">❌ Challenge Used</span>
                 )}
 
                 {stageRules.difficulty !== 'easy' ? (
                   activeTeamObj.powerUps.timeBomb ? (
-                    <span className="pu-available-badge no-escape-preview" title="Can be used by the OPPONENT while your team is answering">
-                      💣 TimeBomb Available
+                    <span className="pu-available-badge" title="Can be used by the OPPONENT while your team is answering">
+                      🟢 TimeBomb Available
                     </span>
                   ) : (
-                    <span className="pu-used-badge">💣 TimeBomb Used</span>
+                    <span className="pu-used-badge">❌ TimeBomb Used</span>
                   )
                 ) : (
                   <span className="level-restriction-badge">💣 TimeBomb (Med/Hard Only)</span>
                 )}
 
                 {activeTeamObj.powerUps.noEscape ? (
-                  <span className="pu-available-badge no-escape-preview">
-                    🚫 NO ESCAPE (use after reveal)
+                  <span className="pu-available-badge">
+                    🟡 NO ESCAPE (use after reveal)
                   </span>
                 ) : (
-                  <span className="pu-used-badge">🚫 No Escape Used</span>
+                  <span className="pu-used-badge">❌ No Escape Used</span>
                 )}
               </div>
 
               <button className="btn-launch-question" onClick={launchQuestion}>
-                <Play size={20} /> REVEAL QUESTION
+                &gt; REVEAL QUESTION
               </button>
             </div>
 
             <div className="opponent-action-section">
               <div className="opponent-label" style={{ color: activeTeam === 'A' ? 'var(--team-b-color)' : 'var(--team-a-color)' }}>
-                {opposingTeamObj.name} (Opponent) Actions:
+                {opposingTeamObj.name} — Opponent Actions:
               </div>
               <div className="pre-question-powerups">
                 {opposingTeamObj.powerUps.challenge ? (
                   <button
                     className="btn-opp-pu challenge"
                     onClick={() => handleChallengeActivate(opponentKey)}
-                    title="Challenge: escalate the difficulty of the question about to be revealed. Points stay the same but the timer becomes the new difficulty's."
+                    title="Challenge: escalate the difficulty of the question about to be revealed."
                   >
-                    <Swords size={16} /> ⚔️ CHALLENGE
+                    <Swords size={14} /> ⚔️ CHALLENGE
                   </button>
                 ) : (
                   <span className="opp-pu-used">⚔️ Challenge Used</span>
@@ -853,9 +852,9 @@ export default function App() {
                     <button
                       className="btn-opp-pu timebomb"
                       onClick={() => handleTimeBombActivate(opponentKey)}
-                      title="TimeBomb: reduce the answering team's remaining time when the question is revealed. The rope is unaffected."
+                      title="TimeBomb: reduce the answering team's remaining time."
                     >
-                      <Bomb size={16} /> 💣 TIMEBOMB
+                      <Bomb size={14} /> 💣 TIMEBOMB
                     </button>
                   ) : (
                     <span className="opp-pu-used">💣 TimeBomb Used</span>
@@ -953,8 +952,8 @@ export default function App() {
       {gameMode === 'SETUP' && (
         <div className="start-screen-container">
           <div className="start-header">
-            <h1>CODE CLASH</h1>
-            <p>Tug of War Edition — Round 2</p>
+            <h1>TUG OF WAR</h1>
+            <p>Round 2 — Technical Quiz Championship</p>
           </div>
 
           <div className="rules-summary-card">
@@ -963,10 +962,10 @@ export default function App() {
               <li><strong>Easy Phase (Q1-12):</strong> 45s timer | 1 Point</li>
               <li><strong>Medium Phase (Q13-24):</strong> 60s timer | 2 Points</li>
               <li><strong>Hard Phase (Q25-36):</strong> 90s timer | 3 Points</li>
-              <li><strong>⚔️ Challenge:</strong> OPPONENT can escalate the live question (Easy→Medium→Hard→Very Hard) — timer updates, but <strong>points stay the same.</strong> Wrong answer = <strong>2× original points!</strong></li>
-              <li><strong>💣 TimeBomb (Med/Hard Only):</strong> OPPONENT cuts the answering team's remaining time (-25s Medium / -30s Hard). Rope is unaffected.</li>
-              <li><strong>🚫 No Escape:</strong> Answering team passes the live question to the opponent. 10s transfer, then the receiving team answers without bonus time.</li>
-              <li><strong>Knockout Win:</strong> Pull the pointer past 26 points!</li>
+              <li><strong>⚔️ Challenge:</strong> OPPONENT escalates difficulty — timer updates, points stay the same. Wrong answer = <strong>2× original points!</strong></li>
+              <li><strong>💣 TimeBomb (Med/Hard Only):</strong> OPPONENT cuts answering team's time (−25s / −30s).</li>
+              <li><strong>🚫 No Escape:</strong> Pass the live question to your opponent. 10s transfer, then they must answer.</li>
+              <li><strong>Knockout Win:</strong> Pull the pointer past {questionsData?.rules?.knockoutThreshold || 20} points!</li>
             </ul>
           </div>
 
@@ -992,7 +991,7 @@ export default function App() {
           </div>
 
           <button className="btn-start-game" onClick={handleStartGame}>
-            <Play size={24} /> ENTER THE CLASH
+            <Play size={22} /> ENTER THE ARENA
           </button>
         </div>
       )}
@@ -1000,10 +999,10 @@ export default function App() {
       {gameMode === 'TIE_BREAKER_PREP' && (
         <div className="board-launch-overlay">
           <div className="board-launch-card" style={{ textAlign: 'center' }}>
-            <Timer size={48} />
-            <h2>Get Ready — Tie Breaker!</h2>
+            <Timer size={44} style={{ color: 'var(--accent-gold)' }} />
+            <h2 style={{ color: 'var(--accent-gold)' }}>SUDDEN DEATH — Tie Breaker!</h2>
             <p>The score is tied. Each team gets 5 separate questions — fastest correct answers win!</p>
-            <div className="tiebreaker-prep-countdown" style={{ fontSize: '4rem', fontWeight: 800, marginTop: '1rem' }}>
+            <div className="tiebreaker-prep-countdown" style={{ fontSize: '4rem', fontWeight: 900, marginTop: '0.5rem', fontFamily: 'var(--font-mono)', color: 'var(--accent-gold)' }}>
               {tieBreakerPrepSeconds}
             </div>
           </div>
@@ -1041,25 +1040,25 @@ export default function App() {
       {gameMode === 'GAME_OVER' && winnerInfo && (
         <div className="gameover-overlay">
           <div className="gameover-card">
-            <Trophy size={72} className="trophy-gold" />
+            <Trophy size={64} className="trophy-gold" />
             <span className="win-method-badge">VICTORY BY {winnerInfo.method}</span>
             <h1 className="winner-announce">{winnerInfo.name.toUpperCase()} WINS!</h1>
             <div className="final-stats-grid">
               <div className="final-stat-box">
-                <span className="team-sub">{teamA.name} Score</span>
-                <h2>{teamA.score} pts</h2>
+                <span className="team-sub">{teamA.name}</span>
+                <h2 style={{ color: 'var(--team-a-color)' }}>{teamA.score} pts</h2>
               </div>
               <div className="final-stat-box">
-                <span className="team-sub">{teamB.name} Score</span>
-                <h2>{teamB.score} pts</h2>
+                <span className="team-sub">{teamB.name}</span>
+                <h2 style={{ color: 'var(--team-b-color)' }}>{teamB.score} pts</h2>
               </div>
             </div>
             <div className="gameover-actions-row">
               <button className="btn-secondary" onClick={() => setIsHistoryModalOpen(true)}>
-                <History size={16} /> View Match History
+                <History size={14} /> Match History
               </button>
               <button className="btn-play-again" onClick={handleStartGame}>
-                <RotateCcw size={20} /> PLAY AGAIN
+                <RotateCcw size={18} /> PLAY AGAIN
               </button>
             </div>
           </div>

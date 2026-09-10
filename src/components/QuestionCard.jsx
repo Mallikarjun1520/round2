@@ -4,15 +4,15 @@ import { sounds } from '../utils/soundEffects';
 
 export default function QuestionCard({
   question,
-  difficulty, // 'easy' | 'medium' | 'hard' | 'very_hard' (current display difficulty)
-  timeLimit, // effective full time for this question state (already reduced by Time Bomb)
-  points = 1, // ORIGINAL point value (never changes after a Challenge)
+  difficulty, // 'easy' | 'medium' | 'hard' | 'very_hard'
+  timeLimit,
+  points = 1,
   originalPoints = points,
   isChallenged = false,
   challengerTeamName = '',
   isTimeBombed = false,
   timeBombActivatorName = '',
-  timeBombOriginalTime = 0, // original (pre-reduction) seconds for the banner
+  timeBombOriginalTime = 0,
   activeTeamName,
   opposingTeamName,
   noEscapeAvailable = false,
@@ -30,13 +30,8 @@ export default function QuestionCard({
   onSubmitAnswer,
   revealLocked = false,
   revealSecondsLeft = 0,
-  // Absolute wall-clock values that let a refreshed page resume the exact
-  // question: deadlineMs is when the question expires; startMs is when it was
-  // revealed (used for an exact "time taken" figure).
   deadline = null,
   startMs = null,
-  // Restore hook: App feeds back the saved {selectedIndex,isSubmitted,answerResult}
-  // so a mid-question refresh keeps the same visible state.
   restoreState = null,
   onQuestionUIChange = null,
   onTimerStart = null
@@ -57,18 +52,13 @@ export default function QuestionCard({
   isSubmittedRef.current = isSubmitted;
   const timeLeftRef = useRef(timeLeft);
   timeLeftRef.current = timeLeft;
-  // Wall-clock start time for this question, used to compute an exact
-  // "time taken" figure for the match history log — independent of the
-  // tick granularity of the visible countdown.
   const questionStartRef = useRef(Date.now());
 
-  // Guard against a missing/not-yet-loaded question so a bad state never
-  // crashes the whole app — show a small fallback instead of throwing.
   if (!question) {
     return (
-      <div className="question-card">
+      <div className="question-card-container">
         <h2 className="question-title">Loading question…</h2>
-        <p>If this doesn't go away, please refresh the page.</p>
+        <p style={{ color: 'var(--text-secondary)' }}>If this does not appear shortly, please refresh.</p>
       </div>
     );
   }
@@ -79,14 +69,9 @@ export default function QuestionCard({
     setIsSubmitted(true);
 
     const isCorrect = chosenIndex !== null && chosenIndex === question.correctIndex;
-
-    // Exact elapsed time since the question appeared, capped at the time
-    // limit (a timeout can never register as taking longer than the clock
-    // allowed). This feeds the match history / dispute log.
     const rawElapsedSeconds = (Date.now() - questionStartRef.current) / 1000;
     const timeTaken = Math.max(0, Math.min(timeLimit, rawElapsedSeconds));
 
-    // Calculate point delta (rope movement handled authoritatively in App)
     let delta = 0;
     if (isCorrect) {
       delta = points;
@@ -133,17 +118,12 @@ export default function QuestionCard({
     }
   };
 
-  // Sound tick effect on low time
   useEffect(() => {
     if (timeLeft > 0 && timeLeft <= 5 && !isSubmitted) {
       sounds.playTick();
     }
   }, [timeLeft, isSubmitted]);
 
-  // Main countdown timer — anchored to an absolute deadline so the remaining
-  // time survives a refresh. Resets on new question / difficulty change /
-  // when the No Escape reveal lock lifts (receiving team's clock starts then).
-  // On mount with a past deadline the question auto-resolves (timeout) once.
   useEffect(() => {
     const key = `${question.question}|${timeLimit}|${revealLocked ? 'L' : 'O'}`;
     if (timerKeyRef.current !== null && timerKeyRef.current !== key) {
@@ -162,8 +142,6 @@ export default function QuestionCard({
     if (onTimerStart) onTimerStart(deadlineMs);
 
     const tick = () => {
-      // Guard against double-resolution: once submitted (or restored as
-      // submitted) never auto-resolve again, even from a stale tick.
       if (isSubmittedRef.current) {
         clearInterval(timerRef.current);
         return;
@@ -185,7 +163,6 @@ export default function QuestionCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question, timeLimit, deadline, revealLocked]);
 
-  // Report UI state upstream so App can auto-save / restore it.
   useEffect(() => {
     if (onQuestionUIChange) {
       onQuestionUIChange({ selectedIndex, isSubmitted, answerResult });
@@ -193,7 +170,6 @@ export default function QuestionCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIndex, isSubmitted, answerResult]);
 
-  // Keyboard shortcut listener (1-4 keys)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (isSubmitted || revealLocked) return;
@@ -211,11 +187,9 @@ export default function QuestionCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIndex, isSubmitted, question, revealLocked]);
 
-  // Calculate percentage of timer
   const timerPercent = (timeLeft / timeLimit) * 100;
   const isUrgent = timeLeft <= 5;
 
-  // Difficulty display helpers
   const getDiffLabel = (diff) => {
     if (diff === 'very_hard') return 'VERY HARD';
     return diff.toUpperCase();
@@ -228,9 +202,6 @@ export default function QuestionCard({
 
   const timeBombReduction = isTimeBombed ? Math.max(0, timeBombOriginalTime - timeLimit) : 0;
 
-  // === NO ESCAPE TRANSITION SCREEN ===
-  // After No Escape activation the question, options and timer stay hidden for
-  // 10 seconds. The receiving team cannot answer and the clock does not tick.
   if (revealLocked) {
     return (
       <div className={`question-card-container no-escape-transition ${getDiffClass(difficulty)}`}>
@@ -238,12 +209,12 @@ export default function QuestionCard({
           <ShieldOff size={44} className="transition-shield-icon" />
           <h2 className="transition-title">NO ESCAPE</h2>
           <p className="transition-pass-line">
-            <strong>{noEscapeActivatorName}</strong> passed the question to <strong>{activeTeamName}</strong>.
+            <strong>{noEscapeActivatorName}</strong> passed this question to <strong>{activeTeamName}</strong>!
           </p>
-          <p className="transition-sub">Question transferring…</p>
+          <p className="transition-sub">QUESTION TRANSFERRING IN...</p>
           <div className="transition-countdown">{revealSecondsLeft}</div>
           <p className="transition-note">
-            The question, options, and timer will appear when the transfer completes.
+            The clock will start when the transfer completes. Prepare to answer!
           </p>
         </div>
       </div>
@@ -252,70 +223,58 @@ export default function QuestionCard({
 
   return (
     <div className={`question-card-container ${getDiffClass(difficulty)}`}>
-      {/* No Escape Target Banner */}
+      {/* Active Pre-Reveal Status Indicators */}
       {isNoEscapeTarget && (
         <div className="no-escape-target-banner">
-          <ShieldOff size={22} />
+          <ShieldOff size={18} />
           <span>
-            🚫 NO ESCAPE! {noEscapeActivatorName.toUpperCase()} passed this question to you!
+            🚫 NO ESCAPE ACTIVATED! {noEscapeActivatorName.toUpperCase()} passed this question to your team!
           </span>
         </div>
       )}
 
-      {/* Challenge Banner if active — brief: who challenged, who still answers.
-          (Difficulty/points/timer details are managed by the game logic.) */}
       {isChallenged && (
         <div className="challenged-active-banner">
           <div className="challenge-banner-top">
-            <ShieldAlert size={22} className="pulse-icon" />
-            <span className="challenge-banner-heading">⚔️ CHALLENGE ACTIVATED</span>
+            <Swords size={18} />
+            <span className="challenge-banner-heading">⚔️ CHALLENGE ACTIVE</span>
           </div>
           <div className="challenge-banner-details">
             <span className="cb-detail-line">
-              <strong>{challengerTeamName.toUpperCase()}</strong> challenged <strong>{activeTeamName.toUpperCase()}</strong>.
+              <strong>{challengerTeamName.toUpperCase()}</strong> escalated difficulty for <strong>{activeTeamName.toUpperCase()}</strong>. Wrong answer penalty: <strong>2× Points!</strong>
             </span>
           </div>
         </div>
       )}
 
-      {/* TimeBomb Banner if active — shows the ORIGINAL full time plus the
-          reduction and the effective (reduced) deadline. The timer already runs
-          at the effective time, so the reduction is baked in from reveal. */}
       {isTimeBombed && (
         <div className="timebomb-active-banner">
           <div className="timebomb-banner-top">
-            <Bomb size={22} />
-            <span className="timebomb-banner-heading">💣 TIME BOMB ACTIVATED</span>
+            <Bomb size={18} />
+            <span className="timebomb-banner-heading">💣 TIME BOMB ACTIVE</span>
           </div>
           <div className="timebomb-banner-details">
             <span className="cb-detail-line">
-              <strong>{timeBombActivatorName.toUpperCase()}</strong> shortened {activeTeamName.toUpperCase()}'s timer!
-            </span>
-            <span className="cb-detail-line">
-              Original time: <strong>{timeBombOriginalTime}s</strong> • Time reduction: <strong>-{timeBombReduction}s</strong> • New deadline: <strong>{timeLimit}s</strong>
-            </span>
-            <span className="cb-detail-line">
-              The reduction is included in the countdown — answer before the deadline or forfeit the question.
+              <strong>{timeBombActivatorName.toUpperCase()}</strong> reduced timer: <strong>{timeBombOriginalTime}s → {timeLimit}s</strong> (-{timeBombReduction}s).
             </span>
           </div>
         </div>
       )}
 
-      {/* Card Header & Timer */}
+      {/* Focused Question Header & Clock */}
       <div className="question-header">
         <div className="meta-left">
           <span className={`diff-pill ${getDiffClass(difficulty)}`}>
-            {getDiffLabel(difficulty)} ({originalPoints} PT{originalPoints > 1 ? 'S' : ''})
+            {getDiffLabel(difficulty)} • {originalPoints} PT{originalPoints > 1 ? 'S' : ''}
           </span>
           <span className="turn-indicator-pill">
-            Turn: <strong>{activeTeamName}</strong>
+            Answering: <strong style={{ color: 'var(--text-primary)' }}>{activeTeamName}</strong>
           </span>
         </div>
 
-        {/* Dynamic Timer */}
         <div className={`timer-box ${isUrgent ? 'timer-urgent' : ''} ${isTimeBombed ? 'timer-bombed' : ''}`}>
-          {isTimeBombed && <Bomb size={16} className="bomb-icon-small" />}
-          <Clock size={20} className="clock-icon" />
+          {isTimeBombed && <Bomb size={14} className="bomb-icon-small" />}
+          <Clock size={16} className="clock-icon" />
           <span className="time-number">{timeLeft}s</span>
           <div className="timer-bar-track">
             <div
@@ -326,69 +285,40 @@ export default function QuestionCard({
         </div>
       </div>
 
-      {/* Main Question Text */}
-      <div className="question-text-box">
-        <h2 className="question-title">{question.question}</h2>
-      </div>
-
-      {/* Opponent Power-Up Bar — BEFORE reveal only. Never shown once the
-          question has been revealed (Challenge/TimeBomb are board-time actions). */}
-      {!isNoEscapeTarget && opponentActionsVisible && (
-        <div className="opponent-powerups-bar">
-          <div className="opponent-pu-label">
-            <span>{opposingTeamName} (Opponent):</span>
-          </div>
-          <div className="opponent-pu-buttons">
-            {canActivateChallenge ? (
-              <button
-                className="btn-opp-pu challenge"
-                onClick={() => onActivateChallenge(opponentKey)}
-                title="Challenge: escalate the difficulty of the question being answered. Points stay the same but the timer becomes the new difficulty's."
-              >
-                <Swords size={16} /> ⚔️ CHALLENGE
-              </button>
-            ) : opponentHasChallenge ? (
-              <span className="opp-pu-badge disabled">⚔️ Challenge not available now</span>
-            ) : (
-              <span className="opp-pu-badge used">⚔️ Challenge Used</span>
-            )}
-
-            {canActivateTimeBomb ? (
-              <button
-                className="btn-opp-pu timebomb"
-                onClick={() => onActivateTimeBomb(opponentKey)}
-                title="TimeBomb: reduce the answering team's remaining time. The rope is unaffected."
-              >
-                <Bomb size={16} /> 💣 TIMEBOMB
-              </button>
-            ) : opponentHasTimeBomb ? (
-              <span className="opp-pu-badge disabled">💣 TimeBomb not available now</span>
-            ) : (
-              <span className="opp-pu-badge used">💣 TimeBomb Used</span>
-            )}
-          </div>
+      {/* Main Question / Code Display */}
+      {question.presentation?.type === 'code' ? (
+        <div className="question-code-block-container">
+          <h2 className="question-title code-prompt">
+            {question.presentation.prompt || 'Analyze the code below:'}
+          </h2>
+          <pre className="code-display-block">
+            <code>{question.presentation.code}</code>
+          </pre>
+        </div>
+      ) : (
+        <div className="question-text-box">
+          <h2 className="question-title">{question.question}</h2>
         </div>
       )}
 
-      {/* No Escape Availability — its own bar, clearly separated from the
-          answer options below, so the power-up doesn't get lost */}
+      {/* NO ESCAPE Power-up Trigger (usable during Question state before answering) */}
       {!isSubmitted && noEscapeAvailable && !isNoEscapeTarget && onNoEscape && !isChallenged && (
         <div className="no-escape-availability-bar">
           <div className="no-escape-availability-label">
-            <ShieldOff size={20} />
-            <span>Power-Up Available</span>
+            <ShieldOff size={18} />
+            <span>POWERUP AVAILABLE:</span>
           </div>
           <button
             className="btn-no-escape-prominent"
             onClick={onNoEscape}
-            title="Pass the current question to the opposing team. 10 seconds, then they must answer it."
+            title="Pass this question to the opposing team."
           >
             🚫 NO ESCAPE — Pass to {opposingTeamName}
           </button>
         </div>
       )}
 
-      {/* Options List */}
+      {/* Options Grid */}
       <div className="options-grid">
         {question.options.map((opt, idx) => {
           let stateClass = '';
@@ -414,22 +344,22 @@ export default function QuestionCard({
               <span className="option-key">{String.fromCharCode(65 + idx)}</span>
               <span className="option-text">{opt}</span>
               {isSubmitted && idx === question.correctIndex && (
-                <CheckCircle className="status-icon icon-correct" size={22} />
+                <CheckCircle className="status-icon icon-correct" size={20} />
               )}
               {isSubmitted && idx === selectedIndex && idx !== question.correctIndex && (
-                <XCircle className="status-icon icon-wrong" size={22} />
+                <XCircle className="status-icon icon-wrong" size={20} />
               )}
             </button>
           );
         })}
       </div>
 
-      {/* Controls & Feedback Footer */}
+      {/* Footer Actions & Post-Answer Feedback */}
       <div className="question-footer">
         {!isSubmitted ? (
           <div className="pre-submit-footer">
             <div className="footer-left-actions">
-              <span className="key-hint">Press 1-4 to select, Enter to submit</span>
+              <span className="key-hint">Press <strong>1-4</strong> to select, <strong>Enter</strong> to submit</span>
             </div>
             <button
               className="btn-submit-answer"
@@ -445,16 +375,16 @@ export default function QuestionCard({
               <div className="res-title">
                 {answerResult?.isCorrect ? (
                   isNoEscapeTarget ? (
-                    <span>✅ Correct — No points awarded (No Escape transfer).</span>
+                    <span>✅ Correct — Question neutralized (No Escape).</span>
                   ) : (
-                    <span>✅ CORRECT! +{originalPoints} Pt{originalPoints > 1 ? 's' : ''} awarded to {activeTeamName}</span>
+                    <span>✅ CORRECT! +{originalPoints} Pt{originalPoints > 1 ? 's' : ''} to {activeTeamName}</span>
                   )
                 ) : isNoEscapeTarget ? (
-                  <span>❌ INCORRECT! {noEscapeActivatorName} gains +{points} Pt{points > 1 ? 's' : ''} from No Escape!</span>
+                  <span>❌ INCORRECT! {noEscapeActivatorName} gains +{points} Pt{points > 1 ? 's' : ''}!</span>
                 ) : isChallenged ? (
                   <span>❌ WRONG ON CHALLENGE! {opposingTeamName} gains +{originalPoints * 2} Pt{originalPoints * 2 > 1 ? 's' : ''}!</span>
                 ) : (
-                  <span>❌ INCORRECT! 0 Pts awarded</span>
+                  <span>❌ INCORRECT — 0 Points awarded</span>
                 )}
               </div>
               {answerResult?.explanation && (
@@ -465,7 +395,7 @@ export default function QuestionCard({
             </div>
 
             <button className="btn-next-question" onClick={handleNextTurn}>
-              CONTINUE GAME <ArrowRight size={20} />
+              CONTINUE <ArrowRight size={18} />
             </button>
           </div>
         )}
