@@ -403,8 +403,6 @@ export default function App() {
     const stageRules = getStageRules();
     const escalatedDifficulty = stageRules.difficulty === 'easy' ? 'medium'
       : stageRules.difficulty === 'medium' ? 'hard' : 'very_hard';
-    const escalatedTimeLimits = { easy: 45, medium: 60, hard: 90, very_hard: 120 };
-    const escalatedTime = escalatedTimeLimits[escalatedDifficulty] || stageRules.timeLimit;
     const upgradeQ = getChallengeUpgradeQuestion();
     setOriginalQuestionDifficulty(stageRules.difficulty);
     setOriginalQuestionPoints(stageRules.points);
@@ -417,7 +415,7 @@ export default function App() {
     setActivePowerup('CHALLENGE_ACTIVE');
     setChallengeActivatedBy(challengerTeam);
     setOriginalQuestionTimer(stageRules.timeLimit);
-    setCurrentQuestionDeadline(escalatedTime);
+    setCurrentQuestionDeadline(stageRules.timeLimit);
     setTimerState('RUNNING');
   }, [activePowerUp, currentTurnIndex, questionsData, gameMode, activeTeam]);
 
@@ -734,8 +732,7 @@ export default function App() {
 
   let effectiveTimeLimit = stageRules.timeLimit;
   if (activePowerUp?.type === 'challenge') {
-    const escalatedTimeLimits = { easy: 45, medium: 60, hard: 90, very_hard: 120 };
-    effectiveTimeLimit = escalatedTimeLimits[effectiveCurrentDifficulty] || 90;
+    effectiveTimeLimit = stageRules.timeLimit;
   } else if (activePowerUp?.type === 'timeBomb') {
     effectiveTimeLimit = Math.max(0, stageRules.timeLimit - getTimeBombReduction(stageRules.difficulty));
   }
@@ -956,18 +953,6 @@ export default function App() {
             <p>Round 2 — Technical Quiz Championship</p>
           </div>
 
-          <div className="rules-summary-card">
-            <h3>⚡ OFFICIAL RULES</h3>
-            <ul className="rules-list">
-              <li><strong>Easy Phase (Q1-12):</strong> 45s timer | 1 Point</li>
-              <li><strong>Medium Phase (Q13-24):</strong> 60s timer | 2 Points</li>
-              <li><strong>Hard Phase (Q25-36):</strong> 90s timer | 3 Points</li>
-              <li><strong>⚔️ Challenge:</strong> OPPONENT escalates difficulty — timer updates, points stay the same. Wrong answer = <strong>2× original points!</strong></li>
-              <li><strong>💣 TimeBomb (Med/Hard Only):</strong> OPPONENT cuts answering team's time (−25s / −30s).</li>
-              <li><strong>🚫 No Escape:</strong> Pass the live question to your opponent. 10s transfer, then they must answer.</li>
-              <li><strong>Knockout Win:</strong> Pull the pointer past {questionsData?.rules?.knockoutThreshold || 20} points!</li>
-            </ul>
-          </div>
 
           <div className="team-setup-grid">
             <div className="setup-team-box">

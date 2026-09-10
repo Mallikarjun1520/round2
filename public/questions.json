@@ -382,7 +382,7 @@
           "presentation": {
             "type": "code",
             "language": "c",
-            "code": "What does the following statement do?\n\nint *p = malloc(5 * sizeof(int));",
+            "code": "int *p = malloc(5 * sizeof(int));",
             "prompt": "What does this statement do?"
           }
         },
@@ -564,10 +564,7 @@
           "correctIndex": 1,
           "explanation": "Linear probing resolves a collision by checking the next slots sequentially until an empty slot is found.",
           "presentation": {
-            "type": "code",
-            "language": "text",
-            "code": "In linear probing, two keys hash to the same index.",
-            "prompt": "Where is the second key placed if that slot is already occupied?"
+            "type": "text"
           }
         },
         {
@@ -582,10 +579,7 @@
           "correctIndex": 2,
           "explanation": "A primary key identifies rows in its own table, while a foreign key represents a relationship to another table.",
           "presentation": {
-            "type": "code",
-            "language": "text",
-            "code": "",
-            "prompt": "Which statement correctly describes primary and foreign keys?"
+            "type": "text"
           }
         },
         {
@@ -696,7 +690,7 @@
           "presentation": {
             "type": "code",
             "language": "python",
-            "code": "data = (10, (20, 30), 40)\nWhich expression accesses 30?",
+            "code": "data = (10, (20, 30), 40)",
             "prompt": "Which expression accesses 30?"
           }
         }
